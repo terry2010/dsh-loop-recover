@@ -208,7 +208,8 @@ export function apply(ctx: any, config: ResolvedConfig) {
     const sid = options?.sessionId
     const isLoop = isAgentLoopRequest(options)
     dbg(`llm/stream fired, agentLoop=${isLoop}, sessionId=${sid}, optKeys=${Object.keys(options ?? {}).join('|')}`)
-    if (sid === undefined) return next()
+    // 门禁：只干预 agent-loop 调用——title/summary 等旁路请求必须透传
+    if (!isLoop || sid === undefined) return next()
     // agent 可能找不到（job/分叉会话）：照样检测+剪枝，只是不续跑
     const svcNow = agentsOf()
     const agent: AgentLike | undefined = svcNow?.get(sid)

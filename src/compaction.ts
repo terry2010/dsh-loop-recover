@@ -25,7 +25,8 @@ export function extractTaskAnchor(session: any, maxChars = 1200): string {
     for (const seq of nodes) {
       const ev = session.eventAt(seq)
       if (ev?.type !== 'user/message') continue
-      const text = (ev.data?.message?.content ?? [])
+      const content = ev.data?.message?.content ?? ev.data?.content ?? []
+      const text = content
         .filter((b: any) => b?.type === 'text')
         .map((b: any) => b.text)
         .join('\n')

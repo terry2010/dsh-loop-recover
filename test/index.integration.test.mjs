@@ -97,14 +97,18 @@ test('含未闭合工具调用 block 时不剪', async () => {
   assert.equal(agent.followups.length, 0)
 })
 
-test('非 agent-loop 请求不拦截', async () => {
+test('非 agent-loop 请求不拦截（全量透传+不续跑）', async () => {
   const ctx = makeCtx()
-  ctx.agents.set('s1', makeAgent())
+  const agent = makeAgent()
+  ctx.agents.set('s1', agent)
   apply(ctx, defaultConfig({}))
   const handler = ctx.handlers.get('llm/stream')
+  const expected = []
+  for await (const c of loopStream()) expected.push(c)
   const seen = []
   for await (const c of handler({ sessionId: 's1' }, () => loopStream())) seen.push(c)
-  assert.ok(seen.length > 10) // 原样全量透传
+  assert.equal(seen.length, expected.length) // 全量透传不截断
+  assert.equal(agent.followups.length, 0)    // 不续跑
 })
 
 async function* normalStream() {
