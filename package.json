@@ -1,0 +1,55 @@
+{
+  "name": "dsh-loop-recover",
+  "version": "0.1.0",
+  "description": "Dead-loop rescue for DeepSeek Harness: detects model repetition mid-stream, prunes the loop from the committed message, and resumes the task automatically.",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./detector": "./src/detector.ts",
+    "./intent": "./src/intent.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --input-type=module -e \"import('./src/index.ts').then(m => { if (typeof m.apply !== 'function') throw new Error('apply 缺失'); if (!m.name) throw new Error('name 缺失'); console.log('OK', m.name) })\""
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "loop",
+    "repetition",
+    "recover",
+    "resume",
+    "compact"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-llm": ">=0.1.7-alpha.1 <0.3.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.1",
+    "@deepseek-ai/dsh-session-format-v3-to-v4": "^0.1.7-alpha.1",
+    "@deepseek-ai/schemastery": "^3.18.5"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-compaction": "^0.0.1-rc.5"
+  }
+}
