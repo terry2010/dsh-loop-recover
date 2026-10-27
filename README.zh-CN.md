@@ -41,7 +41,7 @@ DeepSeek Harness 插件：检测模型死循环 → 流内剪枝 → **压缩上
 ## 安装（桌面版）
 
 ```bash
-dsh plugin --profile desktop add github.com/terry2010/dsh-loop-recover
+dsh plugin --profile desktop add github:terry2010/dsh-loop-recover
 # 注意：桌面 app 跑的是 desktop profile，不是 web
 ```
 

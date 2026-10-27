@@ -44,7 +44,7 @@ Optional `retryTemperature`/`retryReasoningEffort` overrides apply to resumed re
 
 ```bash
 # desktop app runs the `desktop` profile (NOT `web`)
-dsh plugin --profile desktop add github.com/terry2010/dsh-loop-recover
+dsh plugin --profile desktop add github:terry2010/dsh-loop-recover
 ```
 
 Then restart the app. The plugin appears in the installed list as `loop-recover`.
