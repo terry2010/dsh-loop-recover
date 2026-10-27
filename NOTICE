@@ -1,0 +1,6 @@
+dsh-loop-recover contains portions derived from the following MIT-licensed
+projects, with grateful attribution to their authors:
+
+- dsh-loop-detector   Copyright (c) 2026 viego-qiin    (src/detector.ts, src/intent.ts)
+- dsh-loop-rescue     Copyright (c) 2026 citydirector  (stream cut/prune/resume design)
+- rice-patrol         Copyright (c) 2026 LeeLizuoLiu   (compaction handoff design)

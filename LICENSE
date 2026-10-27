@@ -1,11 +1,6 @@
 MIT License
 
-Copyright (c) 2026 dsh-loop-recover contributors
-
-Portions derived from:
-- dsh-loop-detector  Copyright (c) 2026 viego-qiin   (detector.ts, intent.ts)
-- dsh-loop-rescue    Copyright (c) 2026 citydirector (stream cut/prune/resume design)
-- rice-patrol        Copyright (c) 2026 LeeLizuoLiu  (compaction handoff design reference)
+Copyright (c) 2026 terry2010
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
