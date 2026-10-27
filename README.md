@@ -1,6 +1,6 @@
 # dsh-loop-recover
 
-> [中文文档](README.zh-CN.md)
+> [中文文档](https://github.com/terry2010/dsh-loop-recover/blob/master/README.zh-CN.md)
 
 A [DeepSeek Harness](https://deepseek.com) plugin that rescues agents stuck in repetition loops:
 
