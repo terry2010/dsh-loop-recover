@@ -1,5 +1,7 @@
 # dsh-loop-recover
 
+> [中文文档](README.zh-CN.md)
+
 A [DeepSeek Harness](https://deepseek.com) plugin that rescues agents stuck in repetition loops:
 
 **detect → prune → compact → resume** — in-place, no session forking.
@@ -85,5 +87,3 @@ Real-session regression fixtures live in `test/fixtures-real-loop.txt`
 
 MIT. Vendored/adapted from:
 `dsh-loop-detector` (viego-qiin) · `dsh-loop-rescue` (citydirector) · `rice-patrol` (LeeLizuoLiu)
-
-中文文档见 [README.zh-CN.md](README.zh-CN.md)。
