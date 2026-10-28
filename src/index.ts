@@ -109,7 +109,8 @@ export const Config = z.object({
   intentNoveltyThreshold: z.number().min(0).max(1).default(0.25).description('意图检测：新词占比低于此值判重复'),
   intentConfirmCount: z.natural().min(1).default(2).description('意图检测：连续多少次低新词查询后触发'),
   language: z.union(['auto', 'zh', 'en']).default('auto').description('提示语言；auto 跟随界面'),
-  debugLog: z.boolean().default(false).description('写开发诊断日志到 ~/.dsh/loop-recover-debug.log；默认关'),
+  debugLog: z.boolean().default(false).volatile()
+    .description('写开发诊断日志到 ~/.dsh/loop-recover-debug.log；默认关'),
   detector: detectorSchema.default({}),
 })
 
