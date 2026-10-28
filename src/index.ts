@@ -114,6 +114,10 @@ export const Config = z.object({
   detector: detectorSchema.default({}),
 })
 
+/** volatile 字段在 schema 解析后是 {get} 描述符；宿主 resolve 后是裸值——两种形态兼容 */
+const volatileValue = (v: any) =>
+  (v !== null && typeof v === 'object' && typeof v.get === 'function') ? v.get() : v
+
 type ResolvedConfig = {
   mode: 'rescue' | 'cut' | 'observe'
   watch: 'both' | 'reasoning' | 'text'
@@ -189,7 +193,7 @@ export function apply(ctx: any, config: ResolvedConfig) {
   let _append: ((p: string, d: string) => void) | undefined
   void import('node:fs').then((m) => { _append = m.appendFileSync }).catch(() => {})
   const dbg = (msg: string) => {
-    if (!config.debugLog) return
+    if (!volatileValue(config.debugLog)) return
     try { ctx.logger.warn(`loop-recover: ${msg}`) } catch { /* */ }
     try {
       _append?.(`${(globalThis as any).process?.env?.HOME}/.dsh/loop-recover-debug.log`,

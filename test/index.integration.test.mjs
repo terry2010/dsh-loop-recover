@@ -232,3 +232,112 @@ test('agent/request 续跑改写采样参数且递减到 0', async () => {
   assert.equal(r2.temperature, 0.9)
   assert.equal(r3.temperature, 0.5)  // 第 3 次恢复
 })
+
+// === SECTION: 配置行为覆盖 ===
+
+/** reasoning 循环流（blockType/delta 均为 reasoning） */
+async function* reasoningLoopStream(unit = '思考复读片段XYZ', reps = 60) {
+  yield { type: 'block-start', index: 0, blockType: 'reasoning' }
+  for (let i = 0; i < reps; i++) yield { type: 'reasoning-delta', index: 0, text: unit }
+  yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: unit.repeat(reps) } }
+  yield { type: 'finish', reason: { kind: 'stop' } }
+}
+
+/** 纯推理空转流：只有 reasoning-delta，无 text 产出 */
+async function* stallStream(chars = 2000) {
+  yield { type: 'block-start', index: 0, blockType: 'reasoning' }
+  yield { type: 'reasoning-delta', index: 0, text: 'x'.repeat(chars) }
+  yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'x'.repeat(chars) } }
+  yield { type: 'finish', reason: { kind: 'stop' } }
+}
+
+test('cut 模式：剪枝但不续跑', async () => {
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ mode: 'cut', minLen: 64, checkEvery: 16 }))
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => loopStream())) seen.push(c)
+  const end = seen.find(c => c.type === 'block-end')
+  assert.ok(end && !end.block.text.includes('死循环复读片段ABC'.repeat(60))) // 剪枝发生
+  assert.equal(agent.followups.length, 0) // 但不续跑
+})
+
+test('watch=text：reasoning 循环不干预', async () => {
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ mode: 'rescue', watch: 'text', minLen: 64, checkEvery: 16 }))
+  const expected = []
+  for await (const c of reasoningLoopStream()) expected.push(c)
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => reasoningLoopStream())) seen.push(c)
+  assert.equal(seen.length, expected.length) // 全量透传
+  assert.equal(agent.followups.length, 0)
+})
+
+test('watch=reasoning：reasoning 循环命中剪枝', async () => {
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ mode: 'cut', watch: 'reasoning', minLen: 64, checkEvery: 16 }))
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => reasoningLoopStream())) seen.push(c)
+  const end = seen.find(c => c.type === 'block-end')
+  assert.ok(end && !end.block.text.includes('思考复读片段XYZ'.repeat(60)))
+})
+
+test('watch=reasoning：text 循环不干预', async () => {
+  const ctx = makeCtx()
+  ctx.agents.set('s1', makeAgent())
+  apply(ctx, defaultConfig({ mode: 'rescue', watch: 'reasoning', minLen: 64, checkEvery: 16 }))
+  const expected = []
+  for await (const c of loopStream()) expected.push(c)
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => loopStream())) seen.push(c)
+  assert.equal(seen.length, expected.length)
+})
+
+test('stall：连续纯推理空转触发续跑提示', async () => {
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ mode: 'rescue', minLen: 64, checkEvery: 16, stallCalls: 1, stallMinReasoningChars: 32 }))
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => stallStream())) { /* drain */ }
+  await Promise.resolve(); await Promise.resolve()
+  assert.equal(agent.followups.length, 1)
+})
+
+test('debugLog 控制诊断输出', async () => {
+  let warns = 0
+  const ctx = makeCtx()
+  ctx.logger.warn = () => { warns++ }
+  apply(ctx, defaultConfig({ debugLog: false }))
+  assert.equal(warns, 0) // 关闭时 apply() mounted 都不写
+  const ctx2 = makeCtx()
+  ctx2.logger.warn = () => { warns++ }
+  apply(ctx2, defaultConfig({ debugLog: true }))
+  assert.ok(warns >= 1)
+})
+
+test('language 决定剪枝标记语言', async () => {
+  for (const [lang, needle] of [['en', 'removed'], ['zh', '剪除']]) {
+    const ctx = makeCtx()
+    ctx.agents.set('s1', makeAgent())
+    apply(ctx, defaultConfig({ mode: 'cut', minLen: 64, checkEvery: 16, language: lang }))
+    const seen = []
+    for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => loopStream())) seen.push(c)
+    const end = seen.find(c => c.type === 'block-end')
+    assert.ok(end?.block?.text?.includes(needle), `${lang} 标记应包含 "${needle}"`)
+  }
+})
+
+test('marker=false：剪枝不插入标记', async () => {
+  const ctx = makeCtx()
+  ctx.agents.set('s1', makeAgent())
+  apply(ctx, defaultConfig({ mode: 'cut', minLen: 64, checkEvery: 16, marker: false }))
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => loopStream())) seen.push(c)
+  const end = seen.find(c => c.type === 'block-end')
+  assert.ok(!end.block.text.includes('剪除') && !end.block.text.includes('removed'))
+})

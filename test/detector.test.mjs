@@ -134,3 +134,28 @@ test('resolveDetectorOptions: partial 合并与自洽兜底', () => {
   const d = resolveDetectorOptions()
   assert.deepEqual(d, DEFAULT_DETECTOR)
 })
+
+// === SECTION: 误伤样本补充 ===
+
+test('detectRepetition: JSON 结构化输出不误伤', () => {
+  // 模型输出多段不同的 JSON 记录——键名重复但内容各异
+  const chunks = Array.from({ length: 8 }, (_, i) =>
+    JSON.stringify({ id: i, title: `文档-${i}`, tags: [`tag-${i}`], body: `第${i}份记录的独特内容片段` }, null, 2)).join('\n')
+  assert.equal(detectRepetition(varied(50) + chunks), null)
+})
+
+test('detectRepetition: 中英混排长文不误伤', () => {
+  const mixed = Array.from({ length: 40 }, (_, i) =>
+    `Section ${i} 讨论性能优化策略 optimization-${i}: hit ratio 达到 ${60 + i}%，整体 throughput 提升约 ${i * 2.5}x。`).join('\n')
+  assert.equal(detectRepetition(mixed), null)
+})
+
+test('StreamLoopDetector: 1M 字符流摊销不卡顿', async () => {
+  const { StreamLoopDetector } = await import('../src/stream-core.ts')
+  const d = new StreamLoopDetector({ minLen: 64, checkEvery: 256 })
+  const chunk = varied(100) // ~数 KB 的非重复前缀内容
+  const t0 = Date.now()
+  for (let i = 0; i < 200; i++) d.push(chunk + `#${i}`) // 总量 ~1MB
+  const elapsed = Date.now() - t0
+  assert.ok(elapsed < 5000, `1M 字符处理耗时 ${elapsed}ms，超过 5s 阈值`)
+})
