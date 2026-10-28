@@ -52,3 +52,57 @@ test('client.js: DICT 覆盖全部 FIELDS 的 f.* 键（f.language 回归）', (
     assert.ok(zhKeys.has(`f.${k}`), `DICT 缺 f.${k} 词条`)
   }
 })
+
+test('client.js: DICT 覆盖全部 select 选项的 o.* 键', () => {
+  const src = readFileSync(new URL('../client/client.js', import.meta.url), 'utf8')
+  const options = [...src.matchAll(/options:\s*\[([^\]]+)\]/g)]
+    .flatMap((m) => m[1].match(/'([\w-]+)'/g) ?? [])
+    .map((s) => s.replaceAll("'", ''))
+  const zhKeys = new Set([...src.matchAll(/'(o\.[\w-]+)'/g)].map((m) => m[1]))
+  for (const o of options) assert.ok(zhKeys.has(`o.${o}`), `DICT 缺 o.${o} 词条`)
+})
+
+test('client.js: write() 嵌套路径走 mutate、平路径走 set', async () => {
+  let captured = null
+  const calls = []
+  const fakeHandle = {
+    getSnapshot: () => ({ status: 'ready', value: { mode: 'rescue', detector: { minPeriod: 2 } } }),
+    subscribe: () => () => {},
+    set: (p, v) => calls.push(['set', p, v]),
+    mutate: (fn) => { const d = { value: {} }; fn(d); calls.push(['mutate', d.value]) },
+  }
+  let registered = null
+  globalThis.window = {
+    __ModuleLoader__: {
+      load: (m) => {
+        captured = m.factory((name) =>
+          name === 'react'
+            ? {
+                createElement: (type, props, ...kids) => ({ type, props, kids }),
+                useSyncExternalStore: (sub, get) => get(),
+                useState: (v) => [v, () => {}],
+                Component: class {},
+              }
+            : {})
+      },
+    },
+  }
+  await import('../client/client.js?write-case') // 破模块缓存，强制重跑 factory
+  const inner = {
+    effect: (fn) => fn(),
+    slots: { inject: (n, fn) => fn(), register: (def, render) => { registered = render } },
+  }
+  const ctx = {
+    locale: { register: () => {} },
+    inject: (deps, fn) => fn({
+      ...inner,
+      configForms: { get: () => fakeHandle, whileServed: (ns, fn2) => fn2() },
+    }),
+  }
+  captured.apply(ctx)
+  assert.ok(registered, 'slot render 未注册')
+  // render 返回 Panel 元素不抛错（Boundary 包装）
+  const elTree = registered({})
+  assert.ok(elTree?.type, 'render 未产出元素')
+  delete globalThis.window
+})

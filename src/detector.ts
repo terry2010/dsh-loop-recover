@@ -99,7 +99,7 @@ export function isMeaningfulUnit(unit: string, options: DetectorOptions = DEFAUL
 /** pool 单元的"句形"判定：至少 2 个词元（字母词≥2字符或单个 CJK）。
  *  滤掉 JSON/代码结构行——`"tags": [` 只有 1 个词元，真短句必然 ≥2。 */
 function hasSentenceShape(unit: string): boolean {
-  return (unit.match(/[A-Za-z]{2,}|[一-鿿]/g)?.length ?? 0) >= 2
+  return (unit.match(/[A-Za-z]{2,}|(\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul})/gu)?.length ?? 0) >= 2
 }
 
 /** 1) 周期扫描：尾部 `periodRepeats` 个周期逐字符一致。 */

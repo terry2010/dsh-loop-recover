@@ -196,14 +196,19 @@ window.__ModuleLoader__.load({
           (cb) => handle.subscribe(cb),
           () => handle.getSnapshot(),
         )
-        const snapKeys = cfg && typeof cfg === 'object' ? Object.keys(cfg).slice(0, 30).join(',') : typeof cfg
         // 快照结构 {status,value,base,user,revision,writable}：配置本体在 .value
         const data = deepVol(cfg?.value ?? cfg ?? {})
         const [status, setStatus] = React.useState('')
         const write = (path, value) => {
-          try { handle.set(path, value); setStatus(t('saved')); return } catch (e1) { /* fallthrough */ }
-          try { handle.mutate((d) => setPath(d, path, value)); setStatus(t('saved')) }
-          catch (e2) { setStatus(`${t('writeFail')}: ${String(e2).slice(0, 60)}`) }
+          try {
+            if (path.includes('.')) {
+              // 嵌套路径直接 mutate——set 可能按字面 key 写顶层死键
+              handle.mutate((d) => { const v = d?.value ?? d; setPath(v, path, value) })
+            } else {
+              handle.set(path, value)
+            }
+            setStatus(t('saved'))
+          } catch (e2) { setStatus(`${t('writeFail')}: ${String(e2).slice(0, 60)}`) }
         }
 
         const children = []
@@ -218,8 +223,7 @@ window.__ModuleLoader__.load({
             : el('div', { key: g, style: { marginBottom: 12 } }, el('div', { style: { fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)), ...fields)
           children.push(body)
         }
-        children.push(el('div', { key: 'status', style: { fontSize: 11, opacity: 0.6 } },
-          `${status} [snap: ${snapKeys}]`))
+        children.push(el('div', { key: 'status', style: { fontSize: 11, opacity: 0.6 } }, status))
         return el('div', { style: { padding: '4px 0' } }, ...children)
       }
     }
@@ -233,6 +237,19 @@ window.__ModuleLoader__.load({
         const handle = (() => { try { return cf.get(NS) } catch { return undefined } })()
         if (!handle) return
         const Panel = makePanel(React, handle)
+        // ErrorBoundary 定义一次（不放 render 回调里——每次新建 class 会 remount）
+        const el0 = React.createElement
+        class Boundary extends React.Component {
+          constructor(p) { super(p); this.state = { err: null } }
+          static getDerivedStateFromError(err) { return { err } }
+          render() {
+            if (this.state.err) {
+              return el0('div', { style: { padding: '8px 0', fontSize: 12, fontFamily: 'monospace', color: '#c33', whiteSpace: 'pre-wrap' } },
+                `loop-recover render error:\n${String(this.state.err?.stack || this.state.err).slice(0, 400)}`)
+            }
+            return el0(Panel, this.props)
+          }
+        }
 
         inner.effect(() => cf.whileServed([NS], () =>
           inner.slots.inject('plugins.bundle.config', () =>
@@ -241,22 +258,7 @@ window.__ModuleLoader__.load({
               key: ID,
               locale: ID,
               inject: () => ({}),
-            }, (slotProps) => {
-              // ErrorBoundary：渲染异常显示在卡片上，不再静默空白
-              const el = React.createElement
-              class Boundary extends React.Component {
-                constructor(p) { super(p); this.state = { err: null } }
-                static getDerivedStateFromError(err) { return { err } }
-                render() {
-                  if (this.state.err) {
-                    return el('div', { style: { padding: '8px 0', fontSize: 12, fontFamily: 'monospace', color: '#c33', whiteSpace: 'pre-wrap' } },
-                      `loop-recover render error:\n${String(this.state.err?.stack || this.state.err).slice(0, 400)}`)
-                  }
-                  return el(Panel, this.props)
-                }
-              }
-              return el(Boundary, slotProps)
-            }),
+            }, (slotProps) => React.createElement(Boundary, slotProps)),
           )), 'loop-recover: config card')
       })
     }
