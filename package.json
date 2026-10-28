@@ -24,7 +24,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "check": "node --input-type=module -e \"import('./src/index.ts').then(m => { if (typeof m.apply !== 'function') throw new Error('apply 缺失'); if (!m.name) throw new Error('name 缺失'); console.log('OK', m.name) })\""
+    "check": "node --input-type=module -e \"import('./src/index.ts').then(m => { if (typeof m.apply !== 'function') throw new Error('apply \u7f3a\u5931'); if (!m.name) throw new Error('name \u7f3a\u5931'); console.log('OK', m.name) })\""
   },
   "keywords": [
     "dsh",
