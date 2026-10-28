@@ -109,6 +109,7 @@ export const Config = z.object({
   intentNoveltyThreshold: z.number().min(0).max(1).default(0.25).volatile().description('意图检测：新词占比低于此值判重复'),
   intentConfirmCount: z.natural().min(1).default(2).volatile().description('意图检测：连续多少次低新词查询后触发'),
   language: z.union(['auto', 'zh', 'en']).default('auto').volatile().description('提示语言；auto 跟随界面'),
+  keepLanguage: z.boolean().default(true).volatile().description('续跑提示里附语言约束：中文场景要求继续用中文输出'),
   debugLog: z.boolean().default(false).volatile()
     .description('写开发诊断日志到 ~/.dsh/loop-recover-debug.log；默认关'),
   detector: detectorSchema.default({}), // 叶子字段已 volatile；父级再 volatile 会被 schema 拒绝
@@ -149,6 +150,7 @@ type ResolvedConfig = {
   intentNoveltyThreshold: number
   intentConfirmCount: number
   language: 'auto' | 'zh' | 'en'
+  keepLanguage: boolean
   debugLog: boolean
   detector: DetectorOptions
 }
@@ -348,7 +350,11 @@ export function apply(ctx: any, config: ResolvedConfig) {
               })
               dbg(`compaction ${r.ok ? `committed, shadowed=${r.shadowed}` : `skipped: ${r.reason}`}`)
             }
-            scheduleFollowup(agent, state, notice(s.resume(kind, removed), s.resumeSummary(kind, removed)))
+            // 语言约束：中文场景强锚"继续中文"，其他场景保留任务原语言（弱锚安全）
+            const langHint = config.keepLanguage
+              ? (lang() === 'zh' ? '请继续用中文输出。' : "Please continue in the task's original language.")
+              : ''
+            scheduleFollowup(agent, state, notice(s.resume(kind, removed) + (langHint ? ` ${langHint}` : ''), s.resumeSummary(kind, removed)))
           } else {
             dbg('loop detected & pruned (no agent handle; task stops without resume)')
           }
