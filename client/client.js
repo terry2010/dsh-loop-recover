@@ -114,28 +114,42 @@ window.__ModuleLoader__.load({
         style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 },
       }, el('span', null, label), control)
 
+      // 官方 primitives 可用则用（Input/DisclosureRow），缺失降级裸 HTML
+      const P = (() => { try { return require('@deepseek-ai/dsh-client-ui-primitives') } catch { return {} } })()
+      const inputStyle = {
+        width: 110, fontSize: 13, padding: '3px 8px', borderRadius: 6,
+        border: '1px solid var(--dsw-alias-border-l2,#d9d9d9)',
+        background: 'var(--dsw-alias-bg-layer-2,#f5f5f5)', textAlign: 'right',
+      }
+      const selectStyle = { ...inputStyle, textAlign: 'left', minWidth: 140 }
+
       const control = (f, value, write, t) => {
         if (f.type === 'select') {
           return el('select', {
             value: value ?? '', onChange: (e) => write(f.key, e.target.value),
-            style: { minWidth: 120, fontSize: 13 },
+            style: selectStyle,
           }, (f.options || []).map((o) => el('option', { key: o, value: o }, t(`o.${o}`))))
         }
         if (f.type === 'bool') {
-          return el('input', { type: 'checkbox', checked: !!value, onChange: (e) => write(f.key, e.target.checked) })
-        }
-        if (f.type === 'text') {
           return el('input', {
-            type: 'text', value: value ?? '', placeholder: '（不改）',
-            onChange: (e) => write(f.key, e.target.value || undefined),
-            style: { width: 120, fontSize: 13 },
+            type: 'checkbox', checked: !!value, onChange: (e) => write(f.key, e.target.checked),
+            style: { width: 15, height: 15, accentColor: 'var(--dsw-alias-button-primary-fill,#4a6cf7)' },
           })
         }
-        return el('input', {
+        if (f.type === 'text') {
+          const props = {
+            type: 'text', value: value ?? '', placeholder: '（不改）',
+            onChange: (e) => write(f.key, e.target.value || undefined),
+            style: inputStyle,
+          }
+          return P.Input ? el(P.Input, props) : el('input', props)
+        }
+        const props = {
           type: 'number', value: value ?? '', min: f.min, max: f.max, step: f.step ?? 1,
           onChange: (e) => write(f.key, e.target.value === '' ? undefined : Number(e.target.value)),
-          style: { width: 100, fontSize: 13 },
-        })
+          style: inputStyle,
+        }
+        return P.Input ? el(P.Input, props) : el('input', props)
       }
 
       return function ConfigPanel({ t: slotT } = {}) {
@@ -162,9 +176,11 @@ window.__ModuleLoader__.load({
           const items = FIELDS.filter((f) => f.group === g)
           if (!items.length) continue
           const fields = items.map((f) => row(f.label ?? t(`f.${f.key}`), control(f, getPath(data, f.key), write, t)))
-          const body = g === 'advanced'
-            ? el('details', { key: g }, el('summary', { style: { cursor: 'pointer', fontWeight: 600, padding: '6px 0' } }, t(`group.${g}`)), ...fields)
-            : el('div', { key: g, style: { marginBottom: 12 } }, el('div', { style: { fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)), ...fields)
+          const body = g === 'advanced' && P.DisclosureRow
+            ? el(P.DisclosureRow, { key: g, title: t(`group.${g}`) }, ...fields)
+            : g === 'advanced'
+              ? el('details', { key: g }, el('summary', { style: { cursor: 'pointer', fontWeight: 600, padding: '6px 0' } }, t(`group.${g}`)), ...fields)
+              : el('div', { key: g, style: { marginBottom: 12 } }, el('div', { style: { fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)), ...fields)
           children.push(body)
         }
         children.push(el('div', { key: 'status', style: { fontSize: 11, opacity: 0.6 } },
