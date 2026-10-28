@@ -82,8 +82,13 @@ window.__ModuleLoader__.load({
     const GROUP_ORDER = ['basic', 'rescue', 'retry', 'intent', 'detect', 'advanced']
 
     // ---- 小工具 ----
-    const vol = (v) => (v !== null && typeof v === 'object' && typeof v.get === 'function' &&
-      Object.keys(v).every(k => k === 'get')) ? v.get() : v
+    const vol = (v) => {
+      if (v === null || typeof v !== 'object' || typeof v.get !== 'function') return v
+      const keys = Object.keys(v)
+      if (keys.every(k => k === 'get')) return v.get()
+      if (keys.every(k => k === 'get' || k === 'value')) return v.get() // 带 value 标记的形态
+      return v
+    }
     const deepVol = (v) => {
       const r = vol(v)
       if (r !== v) return r
@@ -135,7 +140,7 @@ window.__ModuleLoader__.load({
 
       return function ConfigPanel({ t: slotT } = {}) {
         const t = (key) => {
-          try { const v = slotT?.(key); if (typeof v === 'string' && v) return v } catch { /* */ }
+          try { const v = slotT?.(key); if (typeof v === 'string' && v && v !== key) return v } catch { /* */ }
           return DICT.zh[key] ?? key
         }
         const cfg = React.useSyncExternalStore(
@@ -143,7 +148,8 @@ window.__ModuleLoader__.load({
           () => handle.getSnapshot(),
         )
         const snapKeys = cfg && typeof cfg === 'object' ? Object.keys(cfg).slice(0, 30).join(',') : typeof cfg
-        const data = deepVol(cfg ?? {})
+        // 快照结构 {status,value,base,user,revision,writable}：配置本体在 .value
+        const data = deepVol(cfg?.value ?? cfg ?? {})
         const [status, setStatus] = React.useState('')
         const write = (path, value) => {
           try { handle.set(path, value); setStatus(t('saved')); return } catch (e1) { /* fallthrough */ }
