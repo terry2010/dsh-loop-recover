@@ -88,7 +88,16 @@ function commitInner(agent: any, note: string, opts: { provider?: string; model?
     'use a different approach and do not replay the previous reasoning.\n\n' +
     (anchor ? `Original task:\n${anchor}\n\n` : '') + note
   const compactionId = randomUUID()
-  const marker = { compactionId, turn: null }
+  // v4 校验：compaction/start 的 turn 必须等于当前打开的 turn（重载时查）
+  const openTurn = (() => {
+    let n: number | null = null
+    for (const e of eventList ?? []) {
+      if (e?.type === 'turn/start') n = e.data?.turn ?? null
+      else if (e?.type === 'turn/end') n = null
+    }
+    return n
+  })()
+  const marker = { compactionId, turn: openTurn }
   try {
     const startEvent = session.append('compaction/start', marker)
     const summaryEvent = session.append('compaction/summary', {
