@@ -126,17 +126,50 @@ window.__ModuleLoader__.load({
 
       const control = (f, value, write, t) => {
         if (f.type === 'select') {
-          return el('select', {
-            value: value ?? '', onChange: (e) => write(f.key, e.target.value),
-            style: selectStyle,
-          }, (f.options || []).map((o) => el('option', { key: o, value: o }, t(`o.${o}`))))
+          // dsh-context 同款：边框圆角 + 右侧 chevron 箭头的胶囊下拉
+          return el('div', {
+            style: {
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px', borderRadius: 6, cursor: 'pointer', position: 'relative',
+              border: '1px solid var(--dsw-alias-border-l2,#d9d9d9)',
+              background: 'var(--dsw-alias-bg-layer-2,#f5f5f5)', fontSize: 13, minWidth: 140,
+            },
+          },
+            el('select', {
+              value: value ?? '', onChange: (e) => write(f.key, e.target.value),
+              style: {
+                appearance: 'none', border: 'none', background: 'transparent',
+                fontSize: 13, flex: 1, outline: 'none', cursor: 'pointer', padding: 0,
+              },
+            }, (f.options || []).map((o) => el('option', { key: o, value: o }, t(`o.${o}`)))),
+            P.IconChevronDownOutline14
+              ? el(P.IconChevronDownOutline14)
+              : el('span', { style: { fontSize: 10, opacity: 0.6 } }, '▼'))
         }
         if (f.type === 'bool') {
-          // 纯原生 checkbox——不用自定义色，跟随系统/宿主默认外观
-          return el('input', {
-            type: 'checkbox', checked: !!value,
-            onChange: (e) => write(f.key, e.target.checked),
-          })
+          // app 同款 toggle 开关：隐藏 checkbox + CSS pill
+          const on = !!value
+          return el('label', {
+            style: {
+              display: 'inline-flex', alignItems: 'center', cursor: 'pointer',
+              width: 32, height: 18, borderRadius: 9, position: 'relative',
+              background: on ? 'var(--dsw-alias-button-primary-fill,#4a6cf7)' : 'var(--dsw-alias-border-l3,#d1d5db)',
+              transition: 'background .15s', flexShrink: 0,
+            },
+          },
+            el('input', {
+              type: 'checkbox', checked: on,
+              onChange: (e) => write(f.key, e.target.checked),
+              style: { position: 'absolute', opacity: 0, pointerEvents: 'none' },
+            }),
+            el('span', {
+              style: {
+                position: 'absolute', left: on ? 16 : 2, top: 2,
+                width: 14, height: 14, borderRadius: '50%',
+                background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.2)',
+                transition: 'left .15s',
+              },
+            }))
         }
         if (f.type === 'text') {
           const props = {
