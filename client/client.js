@@ -142,6 +142,7 @@ window.__ModuleLoader__.load({
           (cb) => handle.subscribe(cb),
           () => handle.getSnapshot(),
         )
+        const snapKeys = cfg && typeof cfg === 'object' ? Object.keys(cfg).slice(0, 30).join(',') : typeof cfg
         const data = deepVol(cfg ?? {})
         const [status, setStatus] = React.useState('')
         const write = (path, value) => {
@@ -160,7 +161,8 @@ window.__ModuleLoader__.load({
             : el('div', { key: g, style: { marginBottom: 12 } }, el('div', { style: { fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)), ...fields)
           children.push(body)
         }
-        children.push(el('div', { key: 'status', style: { fontSize: 11, opacity: 0.6 } }, status))
+        children.push(el('div', { key: 'status', style: { fontSize: 11, opacity: 0.6 } },
+          `${status} [snap: ${snapKeys}]`))
         return el('div', { style: { padding: '4px 0' } }, ...children)
       }
     }
@@ -182,7 +184,22 @@ window.__ModuleLoader__.load({
               key: ID,
               locale: ID,
               inject: () => ({}),
-            }, (slotProps) => React.createElement(Panel, slotProps)),
+            }, (slotProps) => {
+              // ErrorBoundary：渲染异常显示在卡片上，不再静默空白
+              const el = React.createElement
+              class Boundary extends React.Component {
+                constructor(p) { super(p); this.state = { err: null } }
+                static getDerivedStateFromError(err) { return { err } }
+                render() {
+                  if (this.state.err) {
+                    return el('div', { style: { padding: '8px 0', fontSize: 12, fontFamily: 'monospace', color: '#c33', whiteSpace: 'pre-wrap' } },
+                      `loop-recover render error:\n${String(this.state.err?.stack || this.state.err).slice(0, 400)}`)
+                  }
+                  return el(Panel, this.props)
+                }
+              }
+              return el(Boundary, slotProps)
+            }),
           )), 'loop-recover: config card')
       })
     }
