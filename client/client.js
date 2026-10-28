@@ -26,7 +26,7 @@ window.__ModuleLoader__.load({
         'f.retryTemperature': '续跑 temperature', 'f.retryReasoningEffort': '续跑推理强度',
         'f.retryRequests': '续跑生效请求数', 'f.debugLog': '写诊断日志',
         'f.intentEnabled': '启用意图检测', 'f.intentNoveltyThreshold': '意图新词阈值',
-        'f.intentConfirmCount': '意图确认次数',
+        'f.intentConfirmCount': '意图确认次数', 'f.language': '语言',
         'o.rescue': '救援（断+剪+压+续）', 'o.cut': '只剪不续', 'o.observe': '只观察',
         'o.both': '思考+输出', 'o.reasoning': '仅思考', 'o.text': '仅输出',
         'o.auto': '跟随界面', 'o.zh': '中文', 'o.en': 'English',
@@ -42,7 +42,7 @@ window.__ModuleLoader__.load({
         'f.retryTemperature': 'Resume temperature', 'f.retryReasoningEffort': 'Resume reasoning effort',
         'f.retryRequests': 'Retry requests', 'f.debugLog': 'Debug log file',
         'f.intentEnabled': 'Intent detection', 'f.intentNoveltyThreshold': 'Intent novelty threshold',
-        'f.intentConfirmCount': 'Intent confirm count',
+        'f.intentConfirmCount': 'Intent confirm count', 'f.language': 'Language',
         'o.rescue': 'rescue (cut+prune+compact+resume)', 'o.cut': 'cut only', 'o.observe': 'observe only',
         'o.both': 'reasoning + text', 'o.reasoning': 'reasoning', 'o.text': 'text',
         'o.auto': 'follow UI', 'o.zh': '中文', 'o.en': 'English',
@@ -165,6 +165,7 @@ window.__ModuleLoader__.load({
         // 快照结构 {status,value,base,user,revision,writable}：配置本体在 .value
         const data = deepVol(cfg?.value ?? cfg ?? {})
         const [status, setStatus] = React.useState('')
+        const [advOpen, setAdvOpen] = React.useState(false)
         const write = (path, value) => {
           try { handle.set(path, value); setStatus(t('saved')); return } catch (e1) { /* fallthrough */ }
           try { handle.mutate((d) => setPath(d, path, value)); setStatus(t('saved')) }
@@ -177,7 +178,11 @@ window.__ModuleLoader__.load({
           if (!items.length) continue
           const fields = items.map((f) => row(f.label ?? t(`f.${f.key}`), control(f, getPath(data, f.key), write, t)))
           const body = g === 'advanced' && P.DisclosureRow
-            ? el(P.DisclosureRow, { key: g, title: t(`group.${g}`) }, ...fields)
+            ? el(P.DisclosureRow, {
+                key: g, title: t(`group.${g}`), expandable: true,
+                open: advOpen, onToggle: () => setAdvOpen(!advOpen),
+                icon: P.IconChevronDownOutline14 ? el(P.IconChevronDownOutline14) : '▸',
+              }, ...fields)
             : g === 'advanced'
               ? el('details', { key: g }, el('summary', { style: { cursor: 'pointer', fontWeight: 600, padding: '6px 0' } }, t(`group.${g}`)), ...fields)
               : el('div', { key: g, style: { marginBottom: 12 } }, el('div', { style: { fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)), ...fields)
