@@ -109,7 +109,7 @@ window.__ModuleLoader__.load({
         style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 },
       }, el('span', null, label), control)
 
-      const control = (f, value, write) => {
+      const control = (f, value, write, t) => {
         if (f.type === 'select') {
           return el('select', {
             value: value ?? '', onChange: (e) => write(f.key, e.target.value),
@@ -155,7 +155,7 @@ window.__ModuleLoader__.load({
         for (const g of GROUP_ORDER) {
           const items = FIELDS.filter((f) => f.group === g)
           if (!items.length) continue
-          const fields = items.map((f) => row(f.label ?? t(`f.${f.key}`), control(f, getPath(data, f.key), write)))
+          const fields = items.map((f) => row(f.label ?? t(`f.${f.key}`), control(f, getPath(data, f.key), write, t)))
           const body = g === 'advanced'
             ? el('details', { key: g }, el('summary', { style: { cursor: 'pointer', fontWeight: 600, padding: '6px 0' } }, t(`group.${g}`)), ...fields)
             : el('div', { key: g, style: { marginBottom: 12 } }, el('div', { style: { fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)), ...fields)
