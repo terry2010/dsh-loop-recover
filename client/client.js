@@ -23,8 +23,8 @@ window.__ModuleLoader__.load({
         'f.minLen': '检测起始长度', 'f.checkEvery': '检测间隔字符',
         'f.maxConsecutiveRescues': '连续救援上限', 'f.stallCalls': '空转提示阈值',
         'f.stallMinReasoningChars': '空转最小推理长度', 'f.compactOnRescue': '续跑前压缩上下文',
-        'f.retryTemperature': '续跑 temperature', 'f.retryReasoningEffort': '续跑推理强度',
-        'f.retryRequests': '续跑生效请求数', 'f.debugLog': '写诊断日志',
+        'f.retryTemperature': '续跑温度', 'f.retryReasoningEffort': '续跑推理强度',
+        'f.retryRequests': '续跑生效请求数', 'f.debugLog': '启用诊断日志',
         'f.intentEnabled': '启用意图检测', 'f.intentNoveltyThreshold': '意图新词阈值',
         'f.intentConfirmCount': '意图确认次数', 'f.language': '语言',
         'o.rescue': '救援（断+剪+压+续）', 'o.cut': '只剪不续', 'o.observe': '只观察',
@@ -114,13 +114,14 @@ window.__ModuleLoader__.load({
         style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', fontSize: 13 },
       }, el('span', null, label), control)
 
-      // 官方 primitives 可用则用（Input/DisclosureRow），缺失降级裸 HTML
+      // 官方 primitives 可用则用（Input 自带边框，不要再叠加样式）
       const P = (() => { try { return require('@deepseek-ai/dsh-client-ui-primitives') } catch { return {} } })()
-      const inputStyle = {
-        width: 110, fontSize: 13, padding: '3px 8px', borderRadius: 6,
-        border: '1px solid var(--dsw-alias-border-l2,#d9d9d9)',
-        background: 'var(--dsw-alias-bg-layer-2,#f5f5f5)', textAlign: 'right',
-      }
+      const bareStyle = { width: 110, fontSize: 13, textAlign: 'right' }
+      const inputStyle = P.Input
+        ? bareStyle // P.Input 自带边框
+        : { ...bareStyle, padding: '3px 8px', borderRadius: 6,
+            border: '1px solid var(--dsw-alias-border-l2,#d9d9d9)',
+            background: 'var(--dsw-alias-bg-layer-2,#f5f5f5)' }
       const selectStyle = { ...inputStyle, textAlign: 'left', minWidth: 140 }
 
       const control = (f, value, write, t) => {
@@ -131,9 +132,10 @@ window.__ModuleLoader__.load({
           }, (f.options || []).map((o) => el('option', { key: o, value: o }, t(`o.${o}`))))
         }
         if (f.type === 'bool') {
+          // 纯原生 checkbox——不用自定义色，跟随系统/宿主默认外观
           return el('input', {
-            type: 'checkbox', checked: !!value, onChange: (e) => write(f.key, e.target.checked),
-            style: { width: 15, height: 15, accentColor: 'var(--dsw-alias-button-primary-fill,#4a6cf7)' },
+            type: 'checkbox', checked: !!value,
+            onChange: (e) => write(f.key, e.target.checked),
           })
         }
         if (f.type === 'text') {
@@ -165,7 +167,6 @@ window.__ModuleLoader__.load({
         // 快照结构 {status,value,base,user,revision,writable}：配置本体在 .value
         const data = deepVol(cfg?.value ?? cfg ?? {})
         const [status, setStatus] = React.useState('')
-        const [advOpen, setAdvOpen] = React.useState(false)
         const write = (path, value) => {
           try { handle.set(path, value); setStatus(t('saved')); return } catch (e1) { /* fallthrough */ }
           try { handle.mutate((d) => setPath(d, path, value)); setStatus(t('saved')) }
@@ -177,15 +178,11 @@ window.__ModuleLoader__.load({
           const items = FIELDS.filter((f) => f.group === g)
           if (!items.length) continue
           const fields = items.map((f) => row(f.label ?? t(`f.${f.key}`), control(f, getPath(data, f.key), write, t)))
-          const body = g === 'advanced' && P.DisclosureRow
-            ? el(P.DisclosureRow, {
-                key: g, title: t(`group.${g}`), expandable: true,
-                open: advOpen, onToggle: () => setAdvOpen(!advOpen),
-                icon: P.IconChevronDownOutline14 ? el(P.IconChevronDownOutline14) : '▸',
-              }, ...fields)
-            : g === 'advanced'
-              ? el('details', { key: g }, el('summary', { style: { cursor: 'pointer', fontWeight: 600, padding: '6px 0' } }, t(`group.${g}`)), ...fields)
-              : el('div', { key: g, style: { marginBottom: 12 } }, el('div', { style: { fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)), ...fields)
+          const body = g === 'advanced'
+            ? el('details', { key: g, style: { marginBottom: 12 } },
+                el('summary', { style: { cursor: 'pointer', fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)),
+                ...fields)
+            : el('div', { key: g, style: { marginBottom: 12 } }, el('div', { style: { fontWeight: 600, padding: '6px 0', borderBottom: '0.5px solid var(--dsw-alias-border-l3,#ddd)' } }, t(`group.${g}`)), ...fields)
           children.push(body)
         }
         children.push(el('div', { key: 'status', style: { fontSize: 11, opacity: 0.6 } },
