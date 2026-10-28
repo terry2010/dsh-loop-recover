@@ -92,7 +92,7 @@ const detectorSchema = z.object({
 })
 
 export const Config = z.object({
-  mode: z.union(['rescue', 'cut', 'observe']).default('rescue')
+  mode: z.union(['rescue', 'cut', 'observe']).default('rescue').volatile()
     .description('rescue：切断+剪除+自动续跑；cut：切断+剪除，不续跑；observe：只记日志'),
   watch: z.union(['both', 'reasoning', 'text']).default('both').volatile().description('检测哪类内容'),
   marker: z.boolean().default(true).volatile().description('在剪除处留一行标记，让模型知道这里删过东西'),
@@ -171,7 +171,19 @@ interface AgentLike {
 }
 
 export function apply(ctx: any, config: ResolvedConfig) {
-  config = resolveVolatile(config) // volatile 描述符统一解包
+  // volatile 描述符就地热更：用 Proxy 让每次 config.* 读取都实时解包，
+  // 用户在配置页改值（宿主写 ref + volatile-update 事件）立即生效，不依赖重启。
+  config = new Proxy(config, {
+    get(t, k) {
+      const v = (t as any)[k]
+      const r = volatileValue(v)
+      // detector 是嵌套对象：返回子代理让 detector.xxx 也实时解包
+      if (k === 'detector' && r !== null && typeof r === 'object' && !Array.isArray(r)) {
+        return new Proxy(r, { get: (t2: any, k2: any) => volatileValue(t2[k2]) })
+      }
+      return r
+    },
+  }) as ResolvedConfig
   const states = new WeakMap<object, RescueState>()
   const stateOf = (agent: object) => {
     let s = states.get(agent)
@@ -183,8 +195,9 @@ export function apply(ctx: any, config: ResolvedConfig) {
   }
   const lang = () => resolveLanguage(ctx, config.language)
   const watches = (kind: string) => config.watch === 'both' || config.watch === kind
-  const detectorOpts = resolveDetectorOptions(config.detector)
-  const intentOpts = resolveIntentOptions({
+  // 惰性计算——每次使用时重算，volatile 热更立即生效（开销可忽略）
+  const detectorOpts = () => resolveDetectorOptions(config.detector)
+  const intentOpts = () => resolveIntentOptions({
     noveltyThreshold: config.intentNoveltyThreshold,
     stallLimit: config.intentConfirmCount,
   } as Partial<IntentOptions>)
@@ -258,7 +271,7 @@ export function apply(ctx: any, config: ResolvedConfig) {
         if (chunk.type === 'block-start') {
           const kind = chunk.blockType
           const detector = (kind === 'reasoning' || kind === 'text') && watches(kind)
-            ? new StreamLoopDetector({ ...detectorOpts, checkEvery: config.checkEvery, minLen: config.minLen })
+            ? new StreamLoopDetector({ ...detectorOpts(), checkEvery: config.checkEvery, minLen: config.minLen })
             : undefined
           open.set(chunk.index, { blockType: kind, text: '', detector })
         } else if (chunk.type === 'block-end') {
@@ -376,14 +389,15 @@ export function apply(ctx: any, config: ResolvedConfig) {
   // 工具调用意图级重复：换措辞搜同一主题 → steer 纠正。
   if (config.intentEnabled) {
     ctx.on('tools/post-execute', async (exec: any, result: any, next: any) => {
+      const io = intentOpts()
       const toolName = exec?.name ?? exec?.tool ?? ''
-      if (typeof toolName !== 'string' || !matchesTool(toolName, intentOpts.toolPatterns)) return next()
+      if (typeof toolName !== 'string' || !matchesTool(toolName, io.toolPatterns)) return next()
       const agent = exec?.agent as object | undefined
-      const query = extractQueryText(exec?.arguments, intentOpts.maxQueryChars)
+      const query = extractQueryText(exec?.arguments, io.maxQueryChars)
       if (agent === undefined || query.trim().length === 0) return next()
       let tracker = intentTrackers.get(agent)
       if (tracker === undefined) {
-        tracker = new IntentTracker(intentOpts)
+        tracker = new IntentTracker(io)
         intentTrackers.set(agent, tracker)
       }
       if (!tracker.observe(query).repeat) return next()
