@@ -74,49 +74,63 @@ export const name = 'loop-recover'
 export const inject = ['agents', 'sessions']
 
 const detectorSchema = z.object({
-  minPeriod: z.natural().min(1).default(DEFAULT_DETECTOR.minPeriod).description('周期扫描最小周期'),
-  maxPeriod: z.natural().min(4).default(DEFAULT_DETECTOR.maxPeriod).description('周期扫描最大周期'),
-  periodRepeats: z.natural().min(2).default(DEFAULT_DETECTOR.periodRepeats).description('周期至少重复次数'),
-  ngramSize: z.natural().min(8).default(DEFAULT_DETECTOR.ngramSize).description('n-gram 块长'),
-  ngramRepeats: z.natural().min(2).default(DEFAULT_DETECTOR.ngramRepeats).description('n-gram 至少出现次数'),
-  ngramWindow: z.natural().min(256).default(DEFAULT_DETECTOR.ngramWindow).description('n-gram 尾部窗口'),
-  ngramStep: z.natural().min(1).default(DEFAULT_DETECTOR.ngramStep).description('n-gram 抽样步长'),
-  anchorSize: z.natural().min(64).default(DEFAULT_DETECTOR.anchorSize).description('锚段长度'),
-  anchorWindow: z.natural().min(1024).default(DEFAULT_DETECTOR.anchorWindow).description('锚段尾部窗口'),
-  minDistinctChars: z.natural().min(1).default(DEFAULT_DETECTOR.minDistinctChars).description('重复块最少不同字符数'),
-  minSubstantiveRatio: z.number().min(0).max(1).default(DEFAULT_DETECTOR.minSubstantiveRatio).description('实义字符最低占比'),
-  runMinChars: z.natural().min(16).default(DEFAULT_DETECTOR.runMinChars).description('单字符刷屏判定的最少连续字符数'),
-  poolWindow: z.natural().min(1024).default(DEFAULT_DETECTOR.poolWindow).description('短句池检测窗口'),
-  poolUnitMinChars: z.natural().min(4).default(DEFAULT_DETECTOR.poolUnitMinChars).description('短句池参与判定的最小句长'),
-  poolMinRepeats: z.natural().min(2).default(DEFAULT_DETECTOR.poolMinRepeats).description('短句池同一短句最少重复次数'),
+  minPeriod: z.natural().min(1).default(DEFAULT_DETECTOR.minPeriod).volatile().description('周期扫描最小周期'),
+  maxPeriod: z.natural().min(4).default(DEFAULT_DETECTOR.maxPeriod).volatile().description('周期扫描最大周期'),
+  periodRepeats: z.natural().min(2).default(DEFAULT_DETECTOR.periodRepeats).volatile().description('周期至少重复次数'),
+  ngramSize: z.natural().min(8).default(DEFAULT_DETECTOR.ngramSize).volatile().description('n-gram 块长'),
+  ngramRepeats: z.natural().min(2).default(DEFAULT_DETECTOR.ngramRepeats).volatile().description('n-gram 至少出现次数'),
+  ngramWindow: z.natural().min(256).default(DEFAULT_DETECTOR.ngramWindow).volatile().description('n-gram 尾部窗口'),
+  ngramStep: z.natural().min(1).default(DEFAULT_DETECTOR.ngramStep).volatile().description('n-gram 抽样步长'),
+  anchorSize: z.natural().min(64).default(DEFAULT_DETECTOR.anchorSize).volatile().description('锚段长度'),
+  anchorWindow: z.natural().min(1024).default(DEFAULT_DETECTOR.anchorWindow).volatile().description('锚段尾部窗口'),
+  minDistinctChars: z.natural().min(1).default(DEFAULT_DETECTOR.minDistinctChars).volatile().description('重复块最少不同字符数'),
+  minSubstantiveRatio: z.number().min(0).max(1).default(DEFAULT_DETECTOR.minSubstantiveRatio).volatile().description('实义字符最低占比'),
+  runMinChars: z.natural().min(16).default(DEFAULT_DETECTOR.runMinChars).volatile().description('单字符刷屏判定的最少连续字符数'),
+  poolWindow: z.natural().min(1024).default(DEFAULT_DETECTOR.poolWindow).volatile().description('短句池检测窗口'),
+  poolUnitMinChars: z.natural().min(4).default(DEFAULT_DETECTOR.poolUnitMinChars).volatile().description('短句池参与判定的最小句长'),
+  poolMinRepeats: z.natural().min(2).default(DEFAULT_DETECTOR.poolMinRepeats).volatile().description('短句池同一短句最少重复次数'),
 })
 
 export const Config = z.object({
   mode: z.union(['rescue', 'cut', 'observe']).default('rescue')
     .description('rescue：切断+剪除+自动续跑；cut：切断+剪除，不续跑；observe：只记日志'),
-  watch: z.union(['both', 'reasoning', 'text']).default('both').description('检测哪类内容'),
-  marker: z.boolean().default(true).description('在剪除处留一行标记，让模型知道这里删过东西'),
-  minLen: z.natural().min(32).default(256).description('单 block 累计多少字符后才开始检测'),
-  checkEvery: z.natural().min(8).default(32).description('每累计多少字符跑一次检测'),
-  maxConsecutiveRescues: z.natural().min(1).default(3).description('连续救援上限；一次正常调用清零'),
-  stallCalls: z.natural().default(3).description('连续多少次「只思考无产出」的调用后提示继续；0 关闭'),
-  stallMinReasoningChars: z.natural().default(1024).description('计入空转的单次推理最小长度'),
-  retryTemperature: z.number().min(0).max(2).description('续跑请求改用的 temperature；不填则不改'),
-  retryReasoningEffort: z.string().description('续跑请求改用的推理强度 ID（如 low）；不填则不改'),
-  retryRequests: z.natural().default(1).description('续跑后多少次请求使用上面的参数'),
-  compactOnRescue: z.boolean().default(true).description('续跑前压缩会话：旧上下文用检查点摘要 shadow'),
-  intentEnabled: z.boolean().default(true).description('启用工具调用意图级重复检测（web_search 等）'),
-  intentNoveltyThreshold: z.number().min(0).max(1).default(0.25).description('意图检测：新词占比低于此值判重复'),
-  intentConfirmCount: z.natural().min(1).default(2).description('意图检测：连续多少次低新词查询后触发'),
-  language: z.union(['auto', 'zh', 'en']).default('auto').description('提示语言；auto 跟随界面'),
+  watch: z.union(['both', 'reasoning', 'text']).default('both').volatile().description('检测哪类内容'),
+  marker: z.boolean().default(true).volatile().description('在剪除处留一行标记，让模型知道这里删过东西'),
+  minLen: z.natural().min(32).default(256).volatile().description('单 block 累计多少字符后才开始检测'),
+  checkEvery: z.natural().min(8).default(32).volatile().description('每累计多少字符跑一次检测'),
+  maxConsecutiveRescues: z.natural().min(1).default(3).volatile().description('连续救援上限；一次正常调用清零'),
+  stallCalls: z.natural().default(3).volatile().description('连续多少次「只思考无产出」的调用后提示继续；0 关闭'),
+  stallMinReasoningChars: z.natural().default(1024).volatile().description('计入空转的单次推理最小长度'),
+  retryTemperature: z.number().min(0).max(2).volatile().description('续跑请求改用的 temperature；不填则不改'),
+  retryReasoningEffort: z.string().volatile().description('续跑请求改用的推理强度 ID（如 low）；不填则不改'),
+  retryRequests: z.natural().default(1).volatile().description('续跑后多少次请求使用上面的参数'),
+  compactOnRescue: z.boolean().default(true).volatile().description('续跑前压缩会话：旧上下文用检查点摘要 shadow'),
+  intentEnabled: z.boolean().default(true).volatile().description('启用工具调用意图级重复检测（web_search 等）'),
+  intentNoveltyThreshold: z.number().min(0).max(1).default(0.25).volatile().description('意图检测：新词占比低于此值判重复'),
+  intentConfirmCount: z.natural().min(1).default(2).volatile().description('意图检测：连续多少次低新词查询后触发'),
+  language: z.union(['auto', 'zh', 'en']).default('auto').volatile().description('提示语言；auto 跟随界面'),
   debugLog: z.boolean().default(false).volatile()
     .description('写开发诊断日志到 ~/.dsh/loop-recover-debug.log；默认关'),
-  detector: detectorSchema.default({}),
+  detector: detectorSchema.default({}), // 叶子字段已 volatile；父级再 volatile 会被 schema 拒绝
 })
 
 /** volatile 字段在 schema 解析后是 {get} 描述符；宿主 resolve 后是裸值——两种形态兼容 */
 const volatileValue = (v: any) =>
-  (v !== null && typeof v === 'object' && typeof v.get === 'function') ? v.get() : v
+  (v !== null && typeof v === 'object' && typeof v.get === 'function' &&
+   Object.keys(v).every(k => k === 'get')) ? v.get() : v
+
+/** 深遍历归一化：所有 volatile 描述符解包成裸值（含 detector 嵌套） */
+const resolveVolatile = (v: any): any => {
+  const r = volatileValue(v)
+  if (r !== v) return r
+  if (Array.isArray(r)) return r.map(resolveVolatile)
+  if (r !== null && typeof r === 'object') {
+    const out: any = {}
+    for (const k of Object.keys(r)) out[k] = resolveVolatile(r[k])
+    return out
+  }
+  return r
+}
 
 type ResolvedConfig = {
   mode: 'rescue' | 'cut' | 'observe'
@@ -157,6 +171,7 @@ interface AgentLike {
 }
 
 export function apply(ctx: any, config: ResolvedConfig) {
+  config = resolveVolatile(config) // volatile 描述符统一解包
   const states = new WeakMap<object, RescueState>()
   const stateOf = (agent: object) => {
     let s = states.get(agent)
@@ -193,7 +208,7 @@ export function apply(ctx: any, config: ResolvedConfig) {
   let _append: ((p: string, d: string) => void) | undefined
   void import('node:fs').then((m) => { _append = m.appendFileSync }).catch(() => {})
   const dbg = (msg: string) => {
-    if (!volatileValue(config.debugLog)) return
+    if (!config.debugLog) return
     try { ctx.logger.warn(`loop-recover: ${msg}`) } catch { /* */ }
     try {
       _append?.(`${(globalThis as any).process?.env?.HOME}/.dsh/loop-recover-debug.log`,
