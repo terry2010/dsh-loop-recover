@@ -1,6 +1,6 @@
 <p align="center">
   <!-- IMAGE: banner/logo —「检测→剪枝→压缩→续跑」循环救援概念图 -->
-  <img src="docs/assets/banner.png" alt="dsh-loop-recover" width="720">
+  <img src="https://raw.githubusercontent.com/terry2010/dsh-loop-recover/master/docs/assets/banner.jpg" alt="dsh-loop-recover" width="720">
 </p>
 
 <h1 align="center">dsh-loop-recover</h1>
@@ -33,8 +33,6 @@ Small local models (Ornith, some Qwen variants, etc.) can collapse into literal 
 
 All inside one agent loop — the model keeps working after rescue.
 
-<!-- IMAGE: 真实会话截图——循环被剪除+压缩标记+续跑恢复 -->
-![Rescue in action](docs/assets/rescue-demo.png)
 
 ## Install
 

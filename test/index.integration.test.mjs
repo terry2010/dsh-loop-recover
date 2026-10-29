@@ -334,19 +334,22 @@ test('language 决定剪枝标记语言', async () => {
 
 test('keepLanguage：中文注入语言约束，关闭后无', async () => {
   const run = async (keepLanguage) => {
-    const { ctx, calls } = makeCtx({ i18n: { language: 'zh' } })
-    const { injects } = ctx.__probe ?? { injects: [] }
+    const ctx = makeCtx()
+    const agent = makeAgent()
+    ctx.agents.set('s1', agent)
     apply(ctx, defaultConfig({ keepLanguage }))
-    const stream = reasoningLoopStream()
-    await consumeStream(ctx, stream)
-    return ctx
+    const handler = ctx.handlers.get('llm/stream')
+    for await (const _ of handler(
+      markAgentLoopRequest({ sessionId: 's1' }),
+      () => reasoningLoopStream(),
+    )) { /* drain */ }
+    await Promise.resolve()
+    return agent.followups
   }
-  const c1 = await run(true)
-  const c2 = await run(false)
-  const text1 = JSON.stringify(c1.__injects ?? c1.injects ?? [])
-  const text2 = JSON.stringify(c2.__injects ?? c2.injects ?? [])
-  assert.ok(text1.includes('请继续用中文输出') || c1.__followups?.some((f) => JSON.stringify(f).includes('请继续用中文输出')))
-  assert.ok(!(c2.__followups ?? []).some((f) => JSON.stringify(f).includes('请继续用中文输出')))
+  const enabled = JSON.stringify(await run(true))
+  const disabled = JSON.stringify(await run(false))
+  assert.ok(enabled.includes('请继续用中文输出'))
+  assert.ok(!disabled.includes('请继续用中文输出'))
 })
 
 test('marker=false：剪枝不插入标记', async () => {
