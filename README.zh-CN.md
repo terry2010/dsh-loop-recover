@@ -15,7 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-65a30d?style=flat" alt="MIT 协议"></a>
   <img src="https://img.shields.io/badge/GUI--configurable-0ea5e9?style=flat" alt="GUI 可配置">
   <br>
-  <a href="README.md">English</a> · <b>中文</b>
+  <a href="https://github.com/terry2010/dsh-loop-recover/blob/master/README.md">English</a> · <b>中文</b>
 </p>
 
 ---
