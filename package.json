@@ -1,6 +1,6 @@
 {
   "name": "dsh-loop-recover",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Dead-loop rescue for DeepSeek Harness: detects model repetition mid-stream, prunes the loop from the committed message, and resumes the task automatically.",
   "type": "module",
   "main": "src/index.ts",
