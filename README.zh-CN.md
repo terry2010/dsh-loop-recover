@@ -42,9 +42,6 @@
 
 打开 **插件 → 添加插件**，搜 `dsh-loop-recover`，点安装。
 
-<!-- IMAGE: 插件页搜索安装截图 -->
-![GUI 安装](docs/assets/install-gui.png)
-
 ### 命令行
 
 ```sh
@@ -55,9 +52,6 @@ dsh plugin --profile desktop add dsh-loop-recover
 ## 配置
 
 32 个配置项全部在插件页可视化编辑——不用手写 YAML。分组：基本 / 救援 / 续跑参数 / 意图检测 / 检测阈值 / 检测器（高级折叠）。
-
-<!-- IMAGE: 插件页配置表单截图（分组+开关+下拉） -->
-![配置表单](docs/assets/config-form.png)
 
 | 分组 | 关键字段 |
 |---|---|

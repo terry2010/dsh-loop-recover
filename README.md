@@ -42,9 +42,6 @@ All inside one agent loop — the model keeps working after rescue.
 
 Open **Plugins → Add plugin**, search `dsh-loop-recover`, click **Install**.
 
-<!-- IMAGE: 插件页搜索安装截图 -->
-![Install via GUI](docs/assets/install-gui.png)
-
 ### CLI
 
 ```sh
@@ -55,9 +52,6 @@ dsh plugin --profile desktop add dsh-loop-recover
 ## Configuration
 
 Everything is editable on the plugin page — no YAML needed. 32 fields grouped: Basics / Rescue / Resume / Intent / Detection / Detector (Advanced).
-
-<!-- IMAGE: 插件页配置表单截图（分组+toggle+下拉） -->
-![Config form](docs/assets/config-form.png)
 
 | Group | Key fields |
 |---|---|
