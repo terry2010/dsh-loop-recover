@@ -160,7 +160,7 @@ const SOURCE = { kind: 'loop-recover' }
 function notice(text: string, summary: string) {
   return createUserMessage({
     content: [{ type: 'text', text }],
-    source: { ...SOURCE, form: 'notice', summary: summary.slice(0, 120) },
+    source: { ...SOURCE, form: 'notice', summary: summary.slice(0, 120) } as any,
   })
 }
 
@@ -411,7 +411,7 @@ export function apply(ctx: any, config: ResolvedConfig) {
       ctx.logger.warn(`loop-recover: intent-level loop on ${toolName}`)
       const msg = notice(s.intent(toolName), s.intentSummary(toolName))
       if (typeof (agent as AgentLike).steer === 'function') (agent as AgentLike).steer!(msg)
-      else agent.inject?.(msg)
+      else (agent as any).inject?.(msg)
       return next()
     })
   }

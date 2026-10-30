@@ -113,10 +113,10 @@ function commitInner(agent: any, note: string, opts: { provider?: string; model?
     // 契约关键：summary 仅 log-only，紧跟的 replace user/message 才真正摘 surface 节点；
     // v4 的 user/message data 是扁平消息体（data.content/data.source 顶层，无 message 包裹），
     // 且 source.kind 必须是 producer-owned 'compact-checkpoint'（'plugin' 被拒）
-    const src = { kind: 'compact-checkpoint', compactionId }
+    const src = { kind: 'compact-checkpoint' as const, compactionId }
     const message = createUserMessage({
       content: [{ type: 'text', text: checkpoint }],
-      source: src,
+      source: src as any,
     })
     session.append('user/message', message, {
       surfaceOp: { op: 'replace', startSeq: start, endSeq: end },

@@ -3,16 +3,17 @@
   "version": "0.3.2",
   "description": "Dead-loop rescue for DeepSeek Harness: detects model repetition mid-stream, prunes the loop from the committed message, and resumes the task automatically.",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "lib/index.js",
   "exports": {
-    ".": "./src/index.ts",
-    "./detector": "./src/detector.ts",
-    "./intent": "./src/intent.ts",
+    ".": "./lib/index.js",
+    "./detector": "./lib/detector.js",
+    "./intent": "./lib/intent.js",
     "./client": "./client/client.js",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
+    "lib",
     "client",
     "cordis.patch.yml",
     "README.md",
@@ -23,6 +24,8 @@
     "node": ">=22.18.0"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "test": "node --test test/*.test.mjs",
     "check": "node --input-type=module -e \"import('./src/index.ts').then(m => { if (typeof m.apply !== 'function') throw new Error('apply 缺失'); if (!m.name) throw new Error('name 缺失'); console.log('OK', m.name) })\""
   },
@@ -57,7 +60,9 @@
     "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-llm": "^0.2.1-rc.1",
     "@deepseek-ai/dsh-session-format-v3-to-v4": "^0.1.7-alpha.1",
-    "@deepseek-ai/schemastery": "^3.18.5"
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@types/node": "^26.6.6",
+    "typescript": "5.9"
   },
   "dependencies": {
     "@deepseek-ai/dsh-compaction": "^0.0.1-rc.5"
