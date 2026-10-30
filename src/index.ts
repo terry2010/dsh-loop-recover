@@ -244,7 +244,10 @@ export function apply(ctx: any, config: ResolvedConfig) {
 
   ctx.on('llm/stream', (options: any, next: any) => {
     const sid = options?.sessionId
+    // WeakSet 标记依赖宿主同实例 dsh-llm；npm 安装的嵌套副本查不到标记，
+    // 用请求特征兜底：有 sessionId + tools 且无 purpose（标题/摘要类带 purpose）。
     const isLoop = isAgentLoopRequest(options)
+      || (sid !== undefined && options?.tools !== undefined && options?.purpose === undefined)
     dbg(`llm/stream fired, agentLoop=${isLoop}, sessionId=${sid}, optKeys=${Object.keys(options ?? {}).join('|')}`)
     // 门禁：只干预 agent-loop 调用——title/summary 等旁路请求必须透传
     if (!isLoop || sid === undefined) return next()
