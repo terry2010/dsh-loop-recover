@@ -3,3 +3,4 @@ docs/code/
 *.log
 lib/
 *.tgz
+.DS_Store
