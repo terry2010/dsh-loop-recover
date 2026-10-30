@@ -1,9 +1,9 @@
-# awesome-dsh-plugin 市场投稿文件草稿
-# 等仓库满 1 天后，由用户确认发布时提交 PR
-# 目标文件：data/plugins/terry2010__dsh-loop-recover.yml
+# awesome-dsh-plugin 市场投稿文件
+# 正式条目已放入目录仓库 clone：docs/code/awesome-dsh-plugin/data/plugins/terry2010__dsh-loop-recover.yml
+# check-submission 已通过；提交 PR 前需 fork + 运行 scripts/generate-readme.mjs
 url: https://github.com/terry2010/dsh-loop-recover
 name: terry2010/dsh-loop-recover
 category: session
 description:
-  en: 'Rescues agents stuck in repetition loops: prunes the loop mid-stream, compacts context, and resumes the task.'
-  zh: '检测模型死循环并原地救回：流内剪枝、压缩上下文、自动续跑任务。'
+  en: 'Loop guard for DeepSeek Harness: detects and stops repeated output mid-stream, prunes and compacts context, then automatically resumes the task without a restart.'
+  zh: '模型死循环防护：自动检测并拦截重复输出，停止循环后恢复任务继续执行，无需重启或手动拉起；支持配置故障中断策略与救援参数。'
