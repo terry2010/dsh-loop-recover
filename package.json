@@ -41,6 +41,10 @@
     "compact"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/terry2010/dsh-loop-recover.git"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
