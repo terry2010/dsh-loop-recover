@@ -25,7 +25,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepare": "npm run build",
+    "prepack": "npm run build",
+    "pretest": "npm run build && git diff --exit-code lib",
     "test": "node --test test/*.test.mjs",
     "check": "node --input-type=module -e \"import('./src/index.ts').then(m => { if (typeof m.apply !== 'function') throw new Error('apply 缺失'); if (!m.name) throw new Error('name 缺失'); console.log('OK', m.name) })\""
   },
