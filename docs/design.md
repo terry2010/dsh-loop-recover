@@ -89,7 +89,8 @@ src/
 
 - `whenIdle()` 等回合真正结束 → `followup()` 发带纠正语的续跑消息
 - 续跑的前 N 次请求可换采样参数（`retryTemperature`、`retryReasoningEffort`）
-- `maxConsecutiveRescues`（默认 3）防无限救援；一次正常调用即重置计数
+- `maxConsecutiveRescues`（默认 3）防连续无限救援；一次正常调用即重置计数。
+  `maxTotalRescues`（默认 24）是累计上限，不随正常调用清零——防"剪一次跑一次"交替形态绕过上限
 
 **机制三：压缩接力（rice-patrol 方案，二期可选）**
 
@@ -134,6 +135,7 @@ reasoning 块放宽阈值：`poolMinRepeats≥8`、`ngramRepeats≥4`——逐�
     watch: both            # both | reasoning | text
     marker: true           # 剪枝处留"〔N chars repeated removed〕"标记
     maxConsecutiveRescues: 3   # 连续救援上限，一次正常调用重置
+    maxTotalRescues: 24        # 累计救援上限，不随正常调用清零（防交替产出无限救援）
     # 检测器阈值（移植 detector 默认）
     minPeriod: 8
     maxPeriod: 256
@@ -202,7 +204,7 @@ reasoning 块放宽阈值：`poolMinRepeats≥8`、`ngramRepeats≥4`——逐�
 |---|---|---|
 | dsh dev-preview API 变动 | 高 | 锁版本 `requires: dsh>=0.1.7`，API 变更时降级为 observe-only 不 crash |
 | block-end 剪枝对含工具调用的 block 无效 | 中 | 检测 block 类型，含 tool_call 时跳过剪枝改 observe+steer |
-| 同 agent 续跑再陷循环 | 中 | maxConsecutiveRescues 上限 + 二期 handoff 备选 |
+| 同 agent 续跑再陷循环 | 中 | maxConsecutiveRescues + maxTotalRescues 双上限 + 二期 handoff 备选 |
 | 阈值误伤正常输出 | 中 | observe 模式先跑一周收集数据再开 rescue |
 | 与已装 loop-guard 双重截断 | 低 | 文档注明二者取一；本插件 mode=cut 时可与 loop-guard 互补 |
 | MIT 版权归属 | 低 | LICENSE 文件并列三个上游 copyright 行；README 注明 vendor 来源 |

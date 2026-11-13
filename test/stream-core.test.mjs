@@ -33,6 +33,20 @@ test('StreamLoopDetector: checkEvery=0 不崩且仍节流为逐次检测', () =>
   assert.equal(d.push('ok '), null) // 不抛 NaN/异常
 })
 
+test('StreamLoopDetector: 尾部有界——长前缀后命中 cutStart 仍是全文坐标', () => {
+  const d = new StreamLoopDetector({ minLen: 64, checkEvery: 256 })
+  // ~18000 字符各异前缀 > keep(8192)×2，触发内部裁头
+  const noise = Array.from({ length: 2000 }, (_, i) => `噪音内容片段${i}。`).join('')
+  let hit = d.push(noise)
+  assert.equal(hit, null)
+  const unit = '周期循环片段ABCD'
+  let pushed = 0
+  for (let i = 0; i < 60 && !hit; i++) { hit = d.push(unit); pushed++ }
+  assert.ok(hit, '长前缀后循环应命中')
+  assert.ok(hit.cutStart > 15000, `cutStart=${hit.cutStart} 应换算回全文坐标(>15000)`)
+  assert.equal(d.length, noise.length + pushed * unit.length) // length 计全文长度
+})
+
 test('prunedBlockText: 截到 cutStart + 标记 + 统计移除量', () => {
   const text = '正常内容。' + 'abc12345'.repeat(10)
   const hit = { kind: 'periodic', detail: '', evidence: '', cutStart: 5 }
@@ -61,6 +75,20 @@ test('decideRescue: 上限内 resume，超限 exhausted；stall 清零', () => {
   decideRescue(s, 3); decideRescue(s, 3)
   assert.equal(decideRescue(s, 3).action, 'exhausted')
   assert.equal(s.consecutive, 4)
+})
+
+test('decideRescue: 累计上限独立于连续上限——consecutive 清零后仍封顶', () => {
+  const s = newRescueState()
+  const d1 = decideRescue(s, 3, 2)
+  assert.equal(d1.action, 'resume')
+  assert.equal(d1.byTotal, false)
+  s.consecutive = 0 // 模拟正常产出清零
+  const d2 = decideRescue(s, 3, 2)
+  assert.equal(d2.action, 'resume') // total=2 未超
+  s.consecutive = 0
+  const d3 = decideRescue(s, 3, 2)
+  assert.equal(d3.action, 'exhausted') // total=3 > 2，虽 consecutive=1
+  assert.equal(d3.byTotal, true)
 })
 
 test('settleFinishedStream: 有产出重置 / 纯推理空转累计 / 达阈值报告 stalled', () => {

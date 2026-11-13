@@ -99,6 +99,7 @@ export const Config = z.object({
   minLen: z.natural().min(32).default(256).volatile().description('单 block 累计多少字符后才开始检测'),
   checkEvery: z.natural().min(8).default(32).volatile().description('每累计多少字符跑一次检测'),
   maxConsecutiveRescues: z.natural().min(1).default(3).volatile().description('连续救援上限；一次正常调用清零'),
+  maxTotalRescues: z.natural().min(1).default(24).volatile().description('累计救援上限；不随正常调用清零，防交替产出导致的无限救援'),
   stallCalls: z.natural().default(3).volatile().description('连续多少次「只思考无产出」的调用后提示继续；0 关闭'),
   stallMinReasoningChars: z.natural().default(1024).volatile().description('计入空转的单次推理最小长度'),
   retryTemperature: z.number().min(0).max(2).volatile().description('续跑请求改用的 temperature；不填则不改'),
@@ -140,6 +141,7 @@ type ResolvedConfig = {
   minLen: number
   checkEvery: number
   maxConsecutiveRescues: number
+  maxTotalRescues: number
   stallCalls: number
   stallMinReasoningChars: number
   retryTemperature?: number
@@ -327,16 +329,20 @@ export function apply(ctx: any, config: ResolvedConfig) {
           continue
         }
         if (hasUnsafeOpenBlock(open.values())) {
-          ctx.logger.warn('loop-recover: a non-text block is open; not cutting')
+          // 只暂缓不关停：工具调用闭合后下一命中仍可剪；每 block 只告警一次
           const live = open.get(hitBlock.index)
-          if (live) live.detector = undefined
+          if (live !== undefined && !live.deferred) {
+            live.deferred = true
+            ctx.logger.warn('loop-recover: a non-text block is open; deferring cut until it closes')
+          }
           yield chunk
           continue
         }
 
         const s = strings(lang())
         const wasExhausted = state.consecutive > config.maxConsecutiveRescues
-        const decision = decideRescue(state, config.maxConsecutiveRescues)
+          || state.total > config.maxTotalRescues
+        const decision = decideRescue(state, config.maxConsecutiveRescues, config.maxTotalRescues)
         // 不 yield 当前 chunk：其内容已在 block.text 累计里，剪切按累计文本进行。
         const tail = []
         for (const [index, block] of open) {
@@ -352,8 +358,14 @@ export function apply(ctx: any, config: ResolvedConfig) {
         if (config.mode === 'rescue') {
           if (decision.action === 'exhausted') {
             if (!wasExhausted && agent) { // 只在首次越限时提示，避免每次循环都打扰用户
-              ctx.logger.warn(`loop-recover: ${decision.consecutive} consecutive cuts; auto-resume paused`)
-              agent.inject?.(notice(s.exhausted(decision.consecutive), s.exhaustedSummary(decision.consecutive)))
+              const msg = decision.byTotal
+                ? s.totalExhausted(decision.total)
+                : s.exhausted(decision.consecutive)
+              const summary = decision.byTotal
+                ? s.totalExhaustedSummary(decision.total)
+                : s.exhaustedSummary(decision.consecutive)
+              ctx.logger.warn(`loop-recover: ${decision.byTotal ? `${decision.total} total` : `${decision.consecutive} consecutive`} cuts; auto-resume paused`)
+              agent.inject?.(notice(msg, summary))
             }
           } else if (agent) {
             state.overrides = config.retryRequests
@@ -395,9 +407,19 @@ export function apply(ctx: any, config: ResolvedConfig) {
   // 续跑请求可选地换一组采样参数，打破同一前缀下的确定性复读。
   ctx.on('agent/request', async (payload: any, next: any) => {
     const resolved = await next()
-    const agent = payload?.agent as object | undefined
-    if (agent === undefined) return resolved
-    const state = states.get(agent)
+    // payload.agent 与 llm/stream 里 agents.get(sid) 拿到的未必是同一对象——
+    // WeakMap 直接 miss 会让 retry 覆写静默失效；依次按 sessionId、payload 本体回退。
+    let state = payload?.agent !== undefined && payload.agent !== null && typeof payload.agent === 'object'
+      ? states.get(payload.agent) : undefined
+    if (state === undefined) {
+      const sid = payload?.sessionId ?? payload?.options?.sessionId
+      const agent = sid !== undefined ? agentsOf()?.get(sid) : undefined
+      if (agent !== undefined) state = states.get(agent)
+      if (state !== undefined) dbg('agent/request: agent identity mismatch, state resolved via sessionId')
+    }
+    if (state === undefined && payload !== null && typeof payload === 'object') {
+      state = states.get(payload)
+    }
     if (state === undefined || state.overrides <= 0) return resolved
     state.overrides--
     const patch: Record<string, unknown> = {}

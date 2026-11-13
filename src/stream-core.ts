@@ -19,33 +19,51 @@ export interface StreamDetectorOptions extends Partial<DetectorOptions> {
   minLen?: number
 }
 
-/** 增量流式检测器：接收 delta，内部按窗口节流跑全量检测。 */
+/** 增量流式检测器：接收 delta，内部按窗口节流跑全量检测。
+ *  各检测层只看尾部窗口，因此内部只保留 max(各窗口) 的尾巴（×2 摊销 slice 成本），
+ *  裁掉的头部长度记入 dropped，命中时把 cutStart 换算回全文坐标——
+ *  长 block 下内存有界，不再随流长线性增长。 */
 export class StreamLoopDetector {
   private text = ''
+  private dropped = 0
+  private total = 0
   private nextCheck: number
   private readonly opts: DetectorOptions
   private readonly every: number
   private readonly minLen: number
+  private readonly keep: number
 
   constructor(options: StreamDetectorOptions = {}) {
     const { checkEvery = 32, minLen = 256, ...detectorOpts } = options
     this.opts = resolveDetectorOptions(detectorOpts)
     this.every = Math.max(1, checkEvery)
     this.minLen = Math.max(0, minLen)
+    this.keep = Math.max(
+      this.opts.anchorWindow, this.opts.poolWindow, this.opts.ngramWindow,
+      this.opts.maxPeriod * this.opts.periodRepeats, this.opts.runMinChars,
+    )
     this.nextCheck = this.minLen
   }
 
-  /** 推入一段新文本；命中返回 LoopHit（含 cutStart），否则 null。 */
+  /** 推入一段新文本；命中返回 LoopHit（cutStart 为全文坐标），否则 null。 */
   push(delta: string): LoopHit | null {
     this.text += delta
-    if (this.text.length < this.nextCheck) return null
-    this.nextCheck = this.text.length - (this.text.length % this.every) + this.every
+    this.total += delta.length
+    if (this.total < this.nextCheck) return null
+    this.nextCheck = this.total - (this.total % this.every) + this.every
+    if (this.text.length > this.keep * 2) {
+      const cut = this.text.length - this.keep
+      this.text = this.text.slice(cut)
+      this.dropped += cut
+    }
     const hit = detectRepetition(this.text, this.opts)
+    if (hit?.cutStart !== undefined) hit.cutStart += this.dropped
     return hit ?? null
   }
 
+  /** 已推入的全文长度（含已裁掉的头部）。 */
   get length(): number {
-    return this.text.length
+    return this.total
   }
 }
 
@@ -54,6 +72,8 @@ export interface OpenBlock {
   blockType: string
   text: string
   detector?: StreamLoopDetector
+  /** 曾因未闭合非文本 block 暂缓剪枝（只告警一次；闭合后命中仍可剪） */
+  deferred?: boolean
 }
 
 /** 剪枝后的 block-end 载荷：截到 cutStart + 可选标记行。 */
@@ -76,30 +96,43 @@ export function hasUnsafeOpenBlock(open: Iterable<OpenBlock>): boolean {
   return false
 }
 
-/** 救援状态机：连续救援计数、空转计数、续跑参数改写次数、世代号。 */
+/** 救援状态机：连续/累计救援计数、空转计数、续跑参数改写次数、世代号。 */
 export interface RescueState {
   consecutive: number
+  /** 累计救援次数；不随正常产出清零——封顶防"打一次嘴干一次活"式无限救援 */
+  total: number
   stall: number
   overrides: number
   generation: number
 }
 
 export function newRescueState(): RescueState {
-  return { consecutive: 0, stall: 0, overrides: 0, generation: 0 }
+  return { consecutive: 0, total: 0, stall: 0, overrides: 0, generation: 0 }
 }
 
 export interface RescueDecision {
   action: 'resume' | 'exhausted'
   consecutive: number
+  total: number
+  /** 触发上限的是累计次数而非连续次数 */
+  byTotal: boolean
 }
 
-/** 一次剪枝命中后的决策：续跑 or 已达上限。 */
-export function decideRescue(state: RescueState, maxConsecutiveRescues: number): RescueDecision {
+/** 一次剪枝命中后的决策：续跑 or 已达上限（连续上限或累计上限，先到先判）。 */
+export function decideRescue(
+  state: RescueState,
+  maxConsecutiveRescues: number,
+  maxTotalRescues = Infinity,
+): RescueDecision {
   state.consecutive++
+  state.total++
   state.stall = 0
+  const byTotal = state.total > maxTotalRescues
   return {
-    action: state.consecutive > maxConsecutiveRescues ? 'exhausted' : 'resume',
+    action: state.consecutive > maxConsecutiveRescues || byTotal ? 'exhausted' : 'resume',
     consecutive: state.consecutive,
+    total: state.total,
+    byTotal,
   }
 }
 

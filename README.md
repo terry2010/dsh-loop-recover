@@ -54,7 +54,7 @@ Everything is editable on the plugin page — no YAML needed. 32 fields grouped:
 | Group | Key fields |
 |---|---|
 | Basics | `mode` (rescue/cut/observe), `watch`, `language`, `keepLanguage`, `marker`, `debugLog` |
-| Rescue | `maxConsecutiveRescues`, `compactOnRescue`, `stallCalls` |
+| Rescue | `maxConsecutiveRescues`, `maxTotalRescues` (lifetime cap, never resets), `compactOnRescue`, `stallCalls` |
 | Resume | `retryTemperature`, `retryReasoningEffort`, `retryRequests` |
 | Intent | `intentEnabled`, `intentNoveltyThreshold`, `intentConfirmCount` |
 
@@ -89,7 +89,7 @@ Reasoning blocks use relaxed thresholds (sentence-pool ≥8, n-gram ≥4): templ
 ## Development
 
 ```sh
-npm test        # 72 unit + integration tests
+npm test        # 77 unit + integration tests
 npm run check   # plugin load smoke
 ```
 

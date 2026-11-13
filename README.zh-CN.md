@@ -49,12 +49,12 @@ dsh plugin --profile desktop add dsh-loop-recover
 
 ## 配置
 
-32 个配置项全部在插件页可视化编辑——不用手写 YAML。分组：基本 / 救援 / 续跑参数 / 意图检测 / 检测阈值 / 检测器（高级折叠）。
+33 个配置项全部在插件页可视化编辑——不用手写 YAML。分组：基本 / 救援 / 续跑参数 / 意图检测 / 检测阈值 / 检测器（高级折叠）。
 
 | 分组 | 关键字段 |
 |---|---|
 | 基本 | `mode`（rescue/cut/observe）、`watch`、`language`、`keepLanguage`、`marker`、`debugLog` |
-| 救援 | `maxConsecutiveRescues`（连续救援上限）、`compactOnRescue`（续跑前压缩）、`stallCalls`（空转提示） |
+| 救援 | `maxConsecutiveRescues`（连续救援上限）、`maxTotalRescues`（累计救援上限，不清零）、`compactOnRescue`（续跑前压缩）、`stallCalls`（空转提示） |
 | 续跑 | `retryTemperature`、`retryReasoningEffort`、`retryRequests` |
 | 意图 | `intentEnabled`、`intentNoveltyThreshold`、`intentConfirmCount` |
 
@@ -89,7 +89,7 @@ reasoning 块用放宽阈值（短句池 ≥8、n-gram ≥4）：逐条枚举分
 ## 开发
 
 ```sh
-npm test        # 72 个单元+集成测试
+npm test        # 77 个单元+集成测试
 npm run check   # 插件加载冒烟
 ```
 

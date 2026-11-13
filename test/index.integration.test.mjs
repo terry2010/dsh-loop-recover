@@ -97,6 +97,26 @@ test('含未闭合工具调用 block 时不剪', async () => {
   assert.equal(agent.followups.length, 0)
 })
 
+test('未闭合工具调用只暂缓不关停：闭合后命中仍剪枝', async () => {
+  const ctx = makeCtx()
+  ctx.agents.set('s1', makeAgent())
+  apply(ctx, defaultConfig({ mode: 'cut', minLen: 64, checkEvery: 16 }))
+  async function* stream() {
+    yield { type: 'block-start', index: 0, blockType: 'text' }
+    yield { type: 'block-start', index: 1, blockType: 'tool_call' } // 未闭合的工具调用
+    for (let i = 0; i < 30; i++) yield { type: 'text-delta', index: 0, text: '死循环复读片段ABC' }
+    yield { type: 'block-end', index: 1, block: { type: 'tool_call', text: '{}' } } // 工具调用闭合
+    for (let i = 0; i < 30; i++) yield { type: 'text-delta', index: 0, text: '死循环复读片段ABC' }
+    yield { type: 'block-end', index: 0, block: { type: 'text', text: 'x' } }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => stream())) seen.push(c)
+  const textEnd = seen.filter(c => c.type === 'block-end').find(c => c.block?.type === 'text')
+  assert.ok(textEnd, '工具调用闭合后应补剪枝')
+  assert.ok(!textEnd.block.text.includes('死循环复读片段ABC'.repeat(3)))
+})
+
 test('非 agent-loop 请求不拦截（全量透传+不续跑）', async () => {
   const ctx = makeCtx()
   const agent = makeAgent()
@@ -214,6 +234,24 @@ test('tools/post-execute：非搜索工具与空查询放行', async () => {
   assert.equal(agent.steers.length, 0)
 })
 
+test('累计救援上限：交替产出下不再无限救援', async () => {
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  agent.injects = []
+  agent.inject = function (m) { this.injects.push(m) }
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ mode: 'rescue', minLen: 64, checkEvery: 16, maxConsecutiveRescues: 3, maxTotalRescues: 2 }))
+  const handler = ctx.handlers.get('llm/stream')
+  const options = markAgentLoopRequest({ sessionId: 's1' })
+  // loop→normal→loop→normal→loop：consecutive 每次被正常产出清零，但 total 仍累计封顶
+  for (const gen of [loopStream, normalStream, loopStream, normalStream, loopStream]) {
+    await drain(handler(options, () => gen()))
+    await Promise.resolve()
+  }
+  assert.equal(agent.followups.length, 2)  // 前两次救援续跑
+  assert.equal(agent.injects.length, 1)     // 第三次（total 超限）提示一次
+})
+
 test('agent/request 续跑改写采样参数且递减到 0', async () => {
   const ctx = makeCtx()
   const agent = makeAgent()
@@ -231,6 +269,21 @@ test('agent/request 续跑改写采样参数且递减到 0', async () => {
   assert.equal(r1.temperature, 0.9)  // 前 2 次被改写
   assert.equal(r2.temperature, 0.9)
   assert.equal(r3.temperature, 0.5)  // 第 3 次恢复
+})
+
+test('agent/request：payload.agent 与 registry 不同对象时按 sessionId 回退', async () => {
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ mode: 'rescue', minLen: 64, checkEvery: 16, retryTemperature: 0.9, retryRequests: 1 }))
+  const streamH = ctx.handlers.get('llm/stream')
+  const reqH = ctx.handlers.get('agent/request')
+  const options = markAgentLoopRequest({ sessionId: 's1' })
+  await drain(streamH(options, () => loopStream())); await Promise.resolve()
+  const next = async () => ({ model: 'm', temperature: 0.5 })
+  // payload.agent 是另一个对象（WeakMap 键不同）→ sessionId 回退仍应覆写
+  const r = await reqH({ sessionId: 's1', agent: {} }, next)
+  assert.equal(r.temperature, 0.9)
 })
 
 // === SECTION: 配置行为覆盖 ===
