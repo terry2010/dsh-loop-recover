@@ -76,7 +76,7 @@ export function wildcardToRegExp(pattern: string): RegExp {
   return new RegExp(`^${escaped.replaceAll('*', '.*')}$`)
 }
 
-/** 工具名是否命中任一模式（空模式表 => 全部命中）。 */
+/** 工具名是否命中任一模式（空模式表 => 全部不命中，即关闭）。 */
 export function matchesTool(toolName: string, patterns: string[]): boolean {
   if (patterns.length === 0) return false
   return patterns.some((pattern) => wildcardToRegExp(pattern).test(toolName))

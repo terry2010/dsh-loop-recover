@@ -222,7 +222,8 @@ export function apply(ctx: any, config: ResolvedConfig) {
   function scheduleFollowup(agent: AgentLike | undefined, state: RescueState, message: unknown) {
     if (typeof agent?.whenIdle !== 'function' || typeof agent.followup !== 'function') return
     const generation = state.generation
-    const idle = agent.whenIdle()
+    let idle: unknown
+    try { idle = agent.whenIdle() } catch { return } // 宿主对象同步抛错不能炸掉流（tail 尚未产出）
     void Promise.resolve(idle).then(() => {
       if (state.generation !== generation) return
       if (agent.inbox?.hasPending) return
@@ -365,7 +366,7 @@ export function apply(ctx: any, config: ResolvedConfig) {
                 ? s.totalExhaustedSummary(decision.total)
                 : s.exhaustedSummary(decision.consecutive)
               ctx.logger.warn(`loop-recover: ${decision.byTotal ? `${decision.total} total` : `${decision.consecutive} consecutive`} cuts; auto-resume paused`)
-              agent.inject?.(notice(msg, summary))
+              try { agent.inject?.(notice(msg, summary)) } catch { /* 宿主注入失败不拖垮流 */ }
             }
           } else if (agent) {
             state.overrides = config.retryRequests
@@ -434,7 +435,11 @@ export function apply(ctx: any, config: ResolvedConfig) {
       const io = intentOpts()
       const toolName = exec?.name ?? exec?.tool ?? ''
       if (typeof toolName !== 'string' || !matchesTool(toolName, io.toolPatterns)) return next()
-      const agent = exec?.agent as object | undefined
+      // 同 agent/request：exec.agent 与 registry 未必同一对象——优先 sessionId 解析，
+      // 否则 intentTrackers 每次 miss、stall 永不累计，意图检测静默失效
+      const sid = exec?.sessionId ?? exec?.context?.sessionId
+      const agent = (sid !== undefined ? agentsOf()?.get(sid) : undefined)
+        ?? (exec?.agent as object | undefined)
       const query = extractQueryText(exec?.arguments, io.maxQueryChars)
       if (agent === undefined || query.trim().length === 0) return next()
       let tracker = intentTrackers.get(agent)
@@ -446,8 +451,10 @@ export function apply(ctx: any, config: ResolvedConfig) {
       const s = strings(lang())
       ctx.logger.warn(`loop-recover: intent-level loop on ${toolName}`)
       const msg = notice(s.intent(toolName), s.intentSummary(toolName))
-      if (typeof (agent as AgentLike).steer === 'function') (agent as AgentLike).steer!(msg)
-      else (agent as any).inject?.(msg)
+      try {
+        if (typeof (agent as AgentLike).steer === 'function') (agent as AgentLike).steer!(msg)
+        else (agent as any).inject?.(msg)
+      } catch { /* 提示失败不打断工具结果 */ }
       return next()
     })
   }

@@ -253,10 +253,11 @@ export function detectPoolRepeat(text: string, options: DetectorOptions = DEFAUL
 
 /**
  * 五层依次检测；命中第一层即返回。
- * 入口下限取"最小周期 × 重复次数"：更短的文本连最小周期都放不下，不必进入扫描。
+ * 入口下限只挡"短到不可能有循环"的文本——不能用 minPeriod*periodRepeats 联动，
+ * 否则用户调大周期阈值会连带关掉较短文本的 charrun/pool 层。
  */
 export function detectRepetition(text: string, options: DetectorOptions = DEFAULT_DETECTOR): LoopHit | null {
-  const floor = Math.max(32, options.minPeriod * options.periodRepeats)
+  const floor = 32
   if (text.length < floor) return null
   return detectPeriodic(text, options) ?? detectNgram(text, options)
     ?? detectAnchor(text, options) ?? detectCharRun(text, options)

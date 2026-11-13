@@ -74,3 +74,10 @@ test('extractTaskAnchor: 首个用户消息为锚点', () => {
   assert.equal(extractTaskAnchor(s), '第一个任务')
   assert.equal(extractTaskAnchor(makeSession([])), '')
 })
+
+test('extractTaskAnchor: 跳过插件注入的续跑提示与检查点消息', () => {
+  const notice = { type: 'user/message', data: { source: { kind: 'loop-recover' }, message: { content: [{ type: 'text', text: '检测到输出陷入重复，请换一条路继续' }] } } }
+  const checkpoint = { type: 'user/message', data: { source: { kind: 'compact-checkpoint' }, content: [{ type: 'text', text: 'Loop-recover checkpoint...' }] } }
+  const s = makeSession([sys, notice, checkpoint, user('真正任务'), asst])
+  assert.equal(extractTaskAnchor(s), '真正任务')
+})

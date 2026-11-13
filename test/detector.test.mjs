@@ -157,6 +157,13 @@ test('detectRepetition: 正常长文/代码不误伤', () => {
   assert.equal(detectRepetition(code), null)
 })
 
+test('detectRepetition: 调大 minPeriod 不连带禁用短文本的 pool 层', () => {
+  // floor 与 minPeriod*periodRepeats 解耦：16*4=64 时 40~60 字短文仍应走 pool
+  const opts = resolveDetectorOptions({ minPeriod: 64, periodRepeats: 4 })
+  const text = '短句反复出现的句子。'.repeat(5) // ~50 字 < 旧 floor 256
+  assert.equal(detectRepetition(text, opts)?.kind, 'pool')
+})
+
 test('resolveDetectorOptions: partial 合并与自洽兜底', () => {
   const o = resolveDetectorOptions({ minPeriod: 4, maxPeriod: 2 })
   assert.equal(o.maxPeriod, 4) // 上限不得小于下限

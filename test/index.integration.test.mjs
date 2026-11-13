@@ -207,6 +207,48 @@ test('generation 竞态：whenIdle 期间来了新调用则旧续跑作废', asy
   assert.equal(agent.followups.length, 0)
 })
 
+test('宿主对象同步抛错不炸流：whenIdle/inject 异常时 tail 照常产出', async () => {
+  // whenIdle 抛错：剪枝 tail 仍完整
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  agent.whenIdle = () => { throw new Error('idle broke') }
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ mode: 'rescue', minLen: 64, checkEvery: 16 }))
+  const handler = ctx.handlers.get('llm/stream')
+  const options = markAgentLoopRequest({ sessionId: 's1' })
+  const out = []
+  for await (const c of handler(options, () => loopStream())) out.push(c)
+  assert.equal(out.at(-1).type, 'finish')
+
+  // inject 抛错：exhausted 提示路径也不炸
+  const ctx2 = makeCtx()
+  const agent2 = makeAgent()
+  agent2.inject = () => { throw new Error('inject broke') }
+  ctx2.agents.set('s1', agent2)
+  apply(ctx2, defaultConfig({ mode: 'rescue', minLen: 64, checkEvery: 16, maxConsecutiveRescues: 1 }))
+  const handler2 = ctx2.handlers.get('llm/stream')
+  for (let i = 0; i < 2; i++) {
+    const out2 = []
+    for await (const c of handler2(options, () => loopStream())) out2.push(c)
+    assert.equal(out2.at(-1).type, 'finish')
+    await Promise.resolve()
+  }
+})
+
+test('tools/post-execute：exec.agent 与 registry 不同对象时按 sessionId 归并 tracker', async () => {
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ intentEnabled: true }))
+  const handler = ctx.handlers.get('tools/post-execute')
+  const next = async () => 'ok'
+  // 每次传新的 {} —— 若只靠 exec.agent，tracker 每次重建、stall 永不累计
+  for (let i = 0; i < 3; i++) {
+    await handler({ name: 'web_search', sessionId: 's1', arguments: { query: 'qwen flash 本地 部署 速度' }, agent: {} }, {}, next)
+  }
+  assert.equal(agent.steers.length, 1)
+})
+
 test('tools/post-execute：意图级重复 → steer 纠正', async () => {
   const ctx = makeCtx()
   const agent = makeAgent()
