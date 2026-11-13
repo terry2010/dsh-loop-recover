@@ -235,13 +235,17 @@ export function apply(ctx: any, config: ResolvedConfig) {
   }
 
   let _append: ((p: string, d: string) => void) | undefined
-  void import('node:fs').then((m) => { _append = m.appendFileSync }).catch(() => {})
+  let _home: string | undefined
+  void Promise.all([import('node:fs'), import('node:os')]).then(([f, o]) => {
+    _append = f.appendFileSync
+    try { _home = o.homedir() } catch { /* */ }
+  }).catch(() => {})
   const dbg = (msg: string) => {
     if (!config.debugLog) return
     try { ctx.logger.warn(`loop-recover: ${msg}`) } catch { /* */ }
     try {
-      _append?.(`${(globalThis as any).process?.env?.HOME}/.dsh/loop-recover-debug.log`,
-        `${new Date().toISOString()} ${msg}\n`)
+      const home = _home ?? (globalThis as any).process?.env?.HOME
+      if (home) _append?.(`${home}/.dsh/loop-recover-debug.log`, `${new Date().toISOString()} ${msg}\n`)
     } catch { /* best-effort */ }
   }
   dbg('apply() mounted')

@@ -43,6 +43,15 @@ test('commitLoopCompaction: system 保留 + replacement 摘 surface 节点', () 
   assert.deepEqual(replaceMeta?.sourceEventSeqs?.slice(-3), [1, 2, 3])
 })
 
+test('commitLoopCompaction: session.openTurn 访问器优先于事件流扫描', () => {
+  const s = makeSession([sys, user('任务'), asst])
+  s.openTurn = 7 // mock 的直接访问器；surface 事件里没有 turn/start
+  const r = commitLoopCompaction({ session: s }, 'n')
+  assert.equal(r.ok, true)
+  assert.equal(s.appended[0].type, 'compaction/start')
+  assert.equal(s.appended[0].data.turn, 7)
+})
+
 test('commitLoopCompaction: append 抛错时补写 error end 并降级', () => {
   const s = makeSession([sys, user('任务')])
   s.append = (type, data, meta) => {

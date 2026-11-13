@@ -89,7 +89,7 @@ Reasoning blocks use relaxed thresholds (sentence-pool ≥8, n-gram ≥4): templ
 ## Development
 
 ```sh
-npm test        # 81 unit + integration tests
+npm test        # 84 unit + integration tests
 npm run check   # plugin load smoke
 ```
 

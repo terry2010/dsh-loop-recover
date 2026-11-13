@@ -69,6 +69,14 @@ test('detectCharRun: 未达阈值不误伤', () => {
   assert.equal(detectCharRun('sssss'), null)                     // 全文太短
 })
 
+test('detectCharRun: 刷屏收尾于窗口中段也命中（不再只看最末尾）', () => {
+  const prefix = varied()
+  const text = prefix + ' next move is ' + 's'.repeat(500) + '。随后模型又恢复了两句正常输出'
+  const hit = detectCharRun(text)
+  assert.equal(hit?.kind, 'charrun')
+  assert.equal(text.slice(0, hit.cutStart), prefix + ' next move is ')
+})
+
 test('detectRepetition: ssss 刷屏经 charrun 命中且剪枝干净', () => {
   const prefix = varied()
   const text = prefix + 's'.repeat(500)

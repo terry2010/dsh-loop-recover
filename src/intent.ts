@@ -24,6 +24,8 @@ export interface IntentOptions {
   stallLimit: number
   /** 单次调用参与比对的文本上限（字符）。默认 2000 */
   maxQueryChars: number
+  /** 历史关键词保鲜期（毫秒）；超期视为新上下文。默认 30 分钟 */
+  maxAgeMs: number
 }
 
 export const DEFAULT_INTENT: IntentOptions = {
@@ -33,6 +35,7 @@ export const DEFAULT_INTENT: IntentOptions = {
   similarityThreshold: 0.5,
   stallLimit: 2,
   maxQueryChars: 2000,
+  maxAgeMs: 30 * 60 * 1000,
 }
 
 /**
@@ -127,22 +130,24 @@ export interface IntentVerdict {
 /** 每个 agent 一个实例；跟踪主题词集与连续停滞次数。 */
 export class IntentTracker {
   private options: IntentOptions
-  private history: Set<string>[] = []
+  private history: { at: number; tokens: Set<string> }[] = []
   private stall = 0
 
   constructor(options: IntentOptions = DEFAULT_INTENT) {
     this.options = options
   }
 
-  /** 记录一次调用并给出判定。 */
-  observe(text: string): IntentVerdict {
+  /** 记录一次调用并给出判定。now 可注入便于测试。 */
+  observe(text: string, now = Date.now()): IntentVerdict {
     const keywords = extractKeywords(text)
     if (keywords.size === 0) {
       return { repeat: false, novelty: 1, similarity: 0, stall: this.stall, keywords: 0 }
     }
+    // 掉出保鲜期的旧查询先剔除——跨任务的陈旧主题不该参与判定
+    while (this.history.length && now - this.history[0]!.at > this.options.maxAgeMs) this.history.shift()
 
     const topic = new Set<string>()
-    for (const entry of this.history) for (const token of entry) topic.add(token)
+    for (const entry of this.history) for (const token of entry.tokens) topic.add(token)
 
     let shared = 0
     for (const token of keywords) if (topic.has(token)) shared++
@@ -151,7 +156,7 @@ export class IntentTracker {
     const union = keywords.size + topic.size - shared
     const similarity = topic.size === 0 || union === 0 ? 0 : shared / union
 
-    this.history.push(keywords)
+    this.history.push({ at: now, tokens: keywords })
     while (this.history.length > Math.max(1, this.options.historySize)) this.history.shift()
 
     // 双判据：新词占比够低，或与既有主题高度重叠（中文 bigram 会天然产生新组合，
@@ -190,5 +195,6 @@ export function resolveIntentOptions(patch: Partial<IntentOptions> = {}): Intent
   }
   if (typeof patch.stallLimit === 'number' && patch.stallLimit >= 1) merged.stallLimit = Math.floor(patch.stallLimit)
   if (typeof patch.maxQueryChars === 'number' && patch.maxQueryChars >= 32) merged.maxQueryChars = Math.floor(patch.maxQueryChars)
+  if (typeof patch.maxAgeMs === 'number' && patch.maxAgeMs >= 60_000) merged.maxAgeMs = Math.floor(patch.maxAgeMs)
   return merged
 }

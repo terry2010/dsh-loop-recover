@@ -89,7 +89,7 @@ reasoning 块用放宽阈值（短句池 ≥8、n-gram ≥4）：逐条枚举分
 ## 开发
 
 ```sh
-npm test        # 81 个单元+集成测试
+npm test        # 84 个单元+集成测试
 npm run check   # 插件加载冒烟
 ```
 

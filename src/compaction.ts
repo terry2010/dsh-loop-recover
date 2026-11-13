@@ -90,9 +90,23 @@ function commitInner(agent: any, note: string, opts: { provider?: string; model?
     'the earlier context was compacted away. Continue the task from this state; ' +
     'use a different approach and do not replay the previous reasoning.\n\n' +
     (anchor ? `Original task:\n${anchor}\n\n` : '') + note
+  // token 数按被 shadow 事件的 data 体积估算（~4 字符/token）——
+  // 原来"事件数 ×64"与实际长度完全脱钩
+  let approxChars = 0
+  for (const seq of shadowedSeqs) {
+    try { approxChars += JSON.stringify(bySeq[seq]?.data ?? '').length } catch { /* */ }
+  }
   const compactionId = randomUUID()
-  // v4 校验：compaction/start 的 turn 必须等于当前打开的 turn（重载时查）
+  // v4 校验：compaction/start 的 turn 必须等于当前打开的 turn（重载时查）。
+  // fallback eventList 只含 surface 节点（没有 turn 事件）——先试 session 直接访问器
   const openTurn = (() => {
+    for (const key of ['openTurn', 'currentTurn'] as const) {
+      try {
+        const v = typeof session[key] === 'function' ? (session[key] as () => unknown).call(session) : session[key]
+        const n = typeof v === 'number' ? v : (v as { turn?: number } | null | undefined)?.turn
+        if (typeof n === 'number' && Number.isFinite(n)) return n
+      } catch { /* */ }
+    }
     let n: number | null = null
     for (const e of eventList ?? []) {
       if (e?.type === 'turn/start') n = e.data?.turn ?? null
@@ -108,7 +122,7 @@ function commitInner(agent: any, note: string, opts: { provider?: string; model?
       summary: [{ type: 'text', text: checkpoint }],
       shadowedRange: { start, end },
       shadowedSeqs,
-      shadowedTokenCount: Math.ceil((eventList?.length ?? shadowedSeqs.length) * 64),
+      shadowedTokenCount: Math.ceil(approxChars / 4),
       provider: opts.provider ?? 'dsh-loop-recover',
       model: opts.model ?? 'checkpoint',
       maxTokens: 8192,

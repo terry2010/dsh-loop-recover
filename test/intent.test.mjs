@@ -47,6 +47,17 @@ test('IntentTracker: 全新主题不误伤', () => {
   assert.equal(r.repeat, false)
 })
 
+test('IntentTracker: 超保鲜期的历史剔除——跨任务旧主题不误判', () => {
+  const t = new IntentTracker(resolveIntentOptions({ stallLimit: 2 }))
+  const t0 = 1_000_000
+  assert.equal(t.observe('qwen3.8 flash 本地部署 速度测试', t0).repeat, false)
+  assert.equal(t.observe('qwen3.8 flash 本地部署 速度测试', t0 + 1000).repeat, false) // stall=1
+  // 31 分钟后同主题再来：旧历史已剔除，视为新上下文而非意图循环
+  const later = t0 + 31 * 60 * 1000
+  assert.equal(t.observe('qwen3.8 flash 本地部署 速度测试', later).repeat, false)
+  assert.equal(t.observe('qwen3.8 flash 本地部署 速度测试', later + 1000).repeat, false) // stall 重新从 1 计
+})
+
 test('resolveIntentOptions: 合并 partial', () => {
   const o = resolveIntentOptions({ noveltyThreshold: 0.5 })
   assert.equal(o.noveltyThreshold, 0.5)
