@@ -251,6 +251,20 @@ async function* stallStream(chars = 2000) {
   yield { type: 'finish', reason: { kind: 'stop' } }
 }
 
+/** 逐条枚举流：每条分析内容各异、结论接同一句判语（模板判语，非死循环） */
+async function* verdictStream(blockType, items = 6) {
+  yield { type: 'block-start', index: 0, blockType }
+  const delta = blockType === 'reasoning' ? 'reasoning-delta' : 'text-delta'
+  let acc = ''
+  for (let i = 0; i < items; i++) {
+    const t = `第${i}条证据分析：材料${i}号显示信号明确，时间戳${1000 + i * 137}，交叉比对结果一致。该条与主题相关，需要引用。`
+    acc += t
+    yield { type: delta, index: 0, text: t }
+  }
+  yield { type: 'block-end', index: 0, block: { type: blockType, text: acc } }
+  yield { type: 'finish', reason: { kind: 'stop' } }
+}
+
 test('cut 模式：剪枝但不续跑', async () => {
   const ctx = makeCtx()
   const agent = makeAgent()
@@ -296,6 +310,39 @@ test('watch=reasoning：text 循环不干预', async () => {
   const seen = []
   for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => loopStream())) seen.push(c)
   assert.equal(seen.length, expected.length)
+})
+
+test('reasoning 块放宽阈值：模板判语枚举 ×6 全量透传不剪枝', async () => {
+  const ctx = makeCtx()
+  const agent = makeAgent()
+  ctx.agents.set('s1', agent)
+  apply(ctx, defaultConfig({ mode: 'rescue', minLen: 64, checkEvery: 16 }))
+  const expected = []
+  for await (const c of verdictStream('reasoning', 6)) expected.push(c)
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => verdictStream('reasoning', 6))) seen.push(c)
+  assert.equal(seen.length, expected.length)
+  assert.equal(agent.followups.length, 0)
+})
+
+test('reasoning 放宽不等于失效：判语 ×9 仍剪枝', async () => {
+  const ctx = makeCtx()
+  ctx.agents.set('s1', makeAgent())
+  apply(ctx, defaultConfig({ mode: 'cut', minLen: 64, checkEvery: 16 }))
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => verdictStream('reasoning', 9))) seen.push(c)
+  const end = seen.find(c => c.type === 'block-end')
+  assert.ok(end && !end.block.text.includes('第5条')) // 从首个判语处剪掉
+})
+
+test('text 块维持默认阈值：同样判语枚举 ×6 即剪枝', async () => {
+  const ctx = makeCtx()
+  ctx.agents.set('s1', makeAgent())
+  apply(ctx, defaultConfig({ mode: 'cut', minLen: 64, checkEvery: 16 }))
+  const seen = []
+  for await (const c of ctx.handlers.get('llm/stream')(markAgentLoopRequest({ sessionId: 's1' }), () => verdictStream('text', 6))) seen.push(c)
+  const end = seen.find(c => c.type === 'block-end')
+  assert.ok(end && !end.block.text.includes('第5条'))
 })
 
 test('stall：连续纯推理空转触发续跑提示', async () => {

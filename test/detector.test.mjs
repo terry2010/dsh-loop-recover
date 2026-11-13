@@ -1,4 +1,4 @@
-/** detector.ts 单元测试：三层检测 + cutStart + 误伤过滤 + 选项合并 */
+/** detector.ts 单元测试：五层检测 + cutStart + 误伤过滤 + 选项合并 */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
@@ -6,6 +6,7 @@ import {
   detectNgram,
   detectAnchor,
   detectCharRun,
+  detectPoolRepeat,
   detectRepetition,
   isMeaningfulUnit,
   resolveDetectorOptions,
@@ -77,16 +78,15 @@ test('detectRepetition: ssss 刷屏经 charrun 命中且剪枝干净', () => {
 })
 
 test('detectPoolRepeat + 真实样本回归（session-22a31d69 叙事型死循环）', async () => {
-  const { detectPoolRepeat } = await import('../src/detector.ts')
   const fs = await import('node:fs')
   const sample = fs.readFileSync(new URL('./fixtures-real-loop.txt', import.meta.url), 'utf8')
   // 直接层
   const p = detectPoolRepeat(sample)
   assert.equal(p?.kind, 'pool')
   assert.ok(p.detail.includes('由于服务器性能有限'))
-  // 链式入口在 8K 尾部即命中
+  // 链式入口在 8K 尾部即命中；逐位采样后 ngram 可能先于 pool 抓到同一段复读，两者都算回归通过
   const hit = detectRepetition(sample.slice(-8192))
-  assert.equal(hit?.kind, 'pool')
+  assert.ok(hit && (hit.kind === 'pool' || hit.kind === 'ngram'), `真实样本应命中，实际 ${hit?.kind}`)
 })
 
 test('detectNgram: 64 字符块重复 3 次命中', () => {
@@ -99,6 +99,36 @@ test('detectNgram: 64 字符块重复 3 次命中', () => {
   const firstBlock = text.indexOf(block)
   const secondBlock = text.indexOf(block, firstBlock + 1)
   assert.ok(hit.cutStart <= secondBlock)
+})
+
+test('detectNgram: 非对齐距离逐字复读命中（逐位采样无盲区）', () => {
+  // 块首下标 600（非 16 倍数），块间距 67/69（奇数）——旧 step=16 抽样全部错位漏检
+  const block = 'repeat segment 07: verbatim text that drifts into a loop pattern!!'
+  const text = varied(600) + block + 'XYZ' + block + 'QRSTU' + block + 'end'
+  assert.equal(detectNgram(text, resolveDetectorOptions({ ngramStep: 16 })), null)
+  const hit = detectNgram(text)
+  assert.equal(hit?.kind, 'ngram')
+  const firstBlock = text.indexOf(block)
+  assert.ok(hit.cutStart !== undefined && hit.cutStart <= text.indexOf(block, firstBlock + 1))
+})
+
+test('detectPoolRepeat: 英文句号切分——英文复读句命中', () => {
+  const unit = 'The server is limited so we retry the same request'
+  const text = varied() + Array.from({ length: 6 }, () => unit).join('. ') + '.'
+  const hit = detectPoolRepeat(text)
+  assert.equal(hit?.kind, 'pool')
+  assert.ok(hit.detail.includes('server is limited'))
+})
+
+test('detectPoolRepeat: 放宽参数下模板判语枚举不误伤', () => {
+  // 推理模型逐条分析：每条结论接同一句判语——methodical enumeration 不是死循环
+  const verdict = '该条与主题相关，需要引用'
+  const enumText = varied(200) + Array.from({ length: 6 }, (_, i) =>
+    `第${i}条证据分析：材料${i}号显示信号明确，时间戳${1000 + i * 137}，交叉比对结果一致。${verdict}。`).join('')
+  // 默认阈值：判语 ×6 命中 pool（这正是误伤案例）
+  assert.equal(detectPoolRepeat(enumText)?.kind, 'pool')
+  // reasoning 放宽后（poolMinRepeats 8）：×6 不达阈值，放行
+  assert.equal(detectRepetition(enumText, resolveDetectorOptions({ poolMinRepeats: 8, ngramRepeats: 4 })), null)
 })
 
 test('detectAnchor: 大段重排复现命中', () => {

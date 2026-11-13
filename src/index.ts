@@ -13,7 +13,7 @@
  *
  * ## 流程
  *
- * 1. 包装每次 agent-loop 发起的模型调用，对每个 reasoning/text block 跑三层检测器；
+ * 1. 包装每次 agent-loop 发起的模型调用，对每个 reasoning/text block 跑五层检测器；
  * 2. 命中后：闭合所有打开的 block（循环所在 block 换成剪过的内容），以 `stop` 结束流；
  * 3. `whenIdle()` 等回合真正结束后用 `followup()` 发带纠正语的续跑消息；
  * 4. 续跑的前 N 次请求可选地改用另一组采样参数；
@@ -199,6 +199,17 @@ export function apply(ctx: any, config: ResolvedConfig) {
   const watches = (kind: string) => config.watch === 'both' || config.watch === kind
   // 惰性计算——每次使用时重算，volatile 热更立即生效（开销可忽略）
   const detectorOpts = () => resolveDetectorOptions(config.detector)
+  // 推理块放宽阈值：逐条枚举分析时"该条相关/需要引用"式模板判语是正常文风而非死循环，
+  // 只抬下限不压低——用户显式调宽时尊重其配置（参照 dsh-rss-news-daily REASONING_GUARD_OPTS）
+  const detectorOptsFor = (kind: string) => {
+    const base = detectorOpts()
+    if (kind !== 'reasoning') return base
+    return resolveDetectorOptions({
+      ...base,
+      poolMinRepeats: Math.max(base.poolMinRepeats, 8),
+      ngramRepeats: Math.max(base.ngramRepeats, 4),
+    })
+  }
   const intentOpts = () => resolveIntentOptions({
     noveltyThreshold: config.intentNoveltyThreshold,
     stallLimit: config.intentConfirmCount,
@@ -276,7 +287,7 @@ export function apply(ctx: any, config: ResolvedConfig) {
         if (chunk.type === 'block-start') {
           const kind = chunk.blockType
           const detector = (kind === 'reasoning' || kind === 'text') && watches(kind)
-            ? new StreamLoopDetector({ ...detectorOpts(), checkEvery: config.checkEvery, minLen: config.minLen })
+            ? new StreamLoopDetector({ ...detectorOptsFor(kind), checkEvery: config.checkEvery, minLen: config.minLen })
             : undefined
           open.set(chunk.index, { blockType: kind, text: '', detector })
         } else if (chunk.type === 'block-end') {

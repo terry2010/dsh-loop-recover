@@ -64,7 +64,7 @@ agentic 任务中存在两类死循环：
 ```
 src/
 ├── index.ts          # 插件入口：schema、apply()、inject、生命周期
-├── detector.ts       # 三层文本检测器（vendor 自 dsh-loop-detector，保留原版权头）
+├── detector.ts       # 五层文本检测器（vendor 自 dsh-loop-detector 三层检测扩展而来，保留原版权头）
 ├── stream-wrap.ts    # llm/stream 瀑布包装：逐 block 检测、剪枝、闭合
 ├── rescue.ts         # 救援流程：whenIdle → followup → 重试参数 → 上限保护
 ├── handoff.ts        # 【可选/二期】压缩接力：compactCheckpoint + 新 agent
@@ -102,16 +102,21 @@ src/
 
 ### 3.3 检测器设计（移植自 dsh-loop-detector）
 
-三层检测，全部只看文本尾部窗口，避免长输出 O(n²)：
+五层检测，全部只看文本尾部窗口，避免长输出 O(n²)：
 
 | 层 | 判定 | 默认参数 |
 |---|---|---|
 | 周期扫描 | 尾部 N 个周期逐字符一致 | period 8-256，重复 ≥4 次 |
-| n-gram | 64 字符块在窗口内出现 ≥3 次（步长抽样允许不对齐） | window 2048，step 16 |
+| n-gram | 64 字符块在窗口内出现 ≥3 次（逐位采样，无对齐盲区） | window 2048，step 1 |
 | 锚段 | 512 字符尾块在更早文本复现并向前扩展 | window 8192 |
+| 单字符刷屏 | 尾部同一实义字符连续出现 | runMinChars 128 |
+| 短句池 | 尾部窗口内同一短句反复出现（按中英句读 `.。！？!?；;\n` 切分） | window 8192，≥4 次 |
 
 误伤过滤：重复块需满足 `minDistinctChars≥2`（拦 `-----` 涂抹）且
 `minSubstantiveRatio≥0.3`（拦 markdown 分隔线等纯符号重复）。
+
+reasoning 块放宽阈值：`poolMinRepeats≥8`、`ngramRepeats≥4`——逐条枚举分析时
+"该条相关/需要引用"式模板判语是正常文风而非死循环；text 块维持默认阈值。
 
 工具意图层（web_search 打转）：topic-set 检测，新查询相对最近 3 次查询并集
 新词占比 <25% 连续 2 次 → 判意图级循环。
@@ -154,7 +159,7 @@ src/
 |---|---|---|---|
 | FP0 | **环境预检**：确认用户 dsh 版本/profile 结构/`inject` 可用性 | `dsh --version` ≥0.1.7、profile 目录可读、官方插件 API 对得上 | 无（自助） |
 | FP1 | **项目骨架**：package.json、cordis.patch.yml、index.ts apply/inject 声明 | `dsh plugin add` 安装成功、profile 启动不报错、config schema 校验生效 | 🔴 **GATE-1 冒烟安装**（用户装一次验证兼容，~10min） |
-| FP2 | **检测器**：vendor 三层检测 + 实义字符过滤 | 单测：合成循环文本命中、误伤样本零误报、O(1) 摊销（1M 字符流压测） | 🟡 **GATE-2 真实样本**（用户触发一次死循环发 session id → 离线灌检测器调阈值） |
+| FP2 | **检测器**：vendor 文本级检测（扩展为五层）+ 实义字符过滤 | 单测：合成循环文本命中、误伤样本零误报、O(1) 摊销（1M 字符流压测） | 🟡 **GATE-2 真实样本**（用户触发一次死循环发 session id → 离线灌检测器调阈值） |
 | FP3 | **流内剪枝**：llm/stream 拦截、剪过的 block-end 落盘 | 集成测：注入模拟循环流 → session log 中 assistant/message 不含循环段、原始 stream 记录完整 | 🟡 **GATE-3 observe 实测**（装 observe 模式跑一次真实任务验证误伤，~10min） |
 | FP4 | **自动续跑**：whenIdle + followup + 重试参数 + 上限保护 | 集成测：rescue 后任务自动继续、maxConsecutiveRescues 达上限停止、正常调用重置计数 | 无 |
 | FP5 | **意图级检测**：web_search topic-set 重复判定 | 单测：同义改写查询序列命中、正常多主题搜索不误伤 | 无 |

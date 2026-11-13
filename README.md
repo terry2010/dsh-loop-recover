@@ -84,10 +84,12 @@ loop hit → cut repeated suffix → rewrite block-end → finish: stop
 
 Non-agent requests (title/summary generation) pass through untouched.
 
+Reasoning blocks use relaxed thresholds (sentence-pool ≥8, n-gram ≥4): template verdicts in methodical enumerations are normal style, not loops; text blocks keep the defaults.
+
 ## Development
 
 ```sh
-npm test        # 66 unit + integration tests
+npm test        # 72 unit + integration tests
 npm run check   # plugin load smoke
 ```
 

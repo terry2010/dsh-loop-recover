@@ -2,7 +2,7 @@
  * dsh-loop-recover — 流处理核心（纯函数/纯状态机，不依赖 dsh，可离线单测）
  *
  * 从 dsh-loop-rescue (citydirector, MIT) 的 index.js 提炼，
- * 检测器换用 dsh-loop-detector (viego-qiin, MIT) 的三层检测。
+ * 检测器换用并扩展自 dsh-loop-detector (viego-qiin, MIT) 的文本级检测（现五层）。
  */
 
 import {

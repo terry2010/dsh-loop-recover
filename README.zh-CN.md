@@ -84,10 +84,12 @@ llm/stream（仅 agent 调用）
 
 非 agent 请求（标题/摘要生成）原样透传不干预。
 
+reasoning 块用放宽阈值（短句池 ≥8、n-gram ≥4）：逐条枚举分析时的模板判语是正常文风，不算死循环；text 块维持默认阈值。
+
 ## 开发
 
 ```sh
-npm test        # 66 个单元+集成测试
+npm test        # 72 个单元+集成测试
 npm run check   # 插件加载冒烟
 ```
 
